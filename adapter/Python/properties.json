@@ -1,0 +1,565 @@
+{
+  "properties": {
+    "AttachRequest": {
+      "$ref": "#/definitions/AttachRequest"
+    },
+    "AttachRequestArguments": {
+      "$ref": "#/definitions/AttachRequestArguments"
+    },
+    "AttachResponse": {
+      "$ref": "#/definitions/AttachResponse"
+    },
+    "Breakpoint": {
+      "$ref": "#/definitions/Breakpoint"
+    },
+    "BreakpointEvent": {
+      "$ref": "#/definitions/BreakpointEvent"
+    },
+    "BreakpointLocation": {
+      "$ref": "#/definitions/BreakpointLocation"
+    },
+    "BreakpointLocationsArguments": {
+      "$ref": "#/definitions/BreakpointLocationsArguments"
+    },
+    "BreakpointLocationsRequest": {
+      "$ref": "#/definitions/BreakpointLocationsRequest"
+    },
+    "BreakpointLocationsResponse": {
+      "$ref": "#/definitions/BreakpointLocationsResponse"
+    },
+    "CancelArguments": {
+      "$ref": "#/definitions/CancelArguments"
+    },
+    "CancelRequest": {
+      "$ref": "#/definitions/CancelRequest"
+    },
+    "CancelResponse": {
+      "$ref": "#/definitions/CancelResponse"
+    },
+    "Capabilities": {
+      "$ref": "#/definitions/Capabilities"
+    },
+    "CapabilitiesEvent": {
+      "$ref": "#/definitions/CapabilitiesEvent"
+    },
+    "Checksum": {
+      "$ref": "#/definitions/Checksum"
+    },
+    "ChecksumAlgorithm": {
+      "$ref": "#/definitions/ChecksumAlgorithm"
+    },
+    "ColumnDescriptor": {
+      "$ref": "#/definitions/ColumnDescriptor"
+    },
+    "CompletionItem": {
+      "$ref": "#/definitions/CompletionItem"
+    },
+    "CompletionItemType": {
+      "$ref": "#/definitions/CompletionItemType"
+    },
+    "CompletionsArguments": {
+      "$ref": "#/definitions/CompletionsArguments"
+    },
+    "CompletionsRequest": {
+      "$ref": "#/definitions/CompletionsRequest"
+    },
+    "CompletionsResponse": {
+      "$ref": "#/definitions/CompletionsResponse"
+    },
+    "ConfigurationDoneArguments": {
+      "$ref": "#/definitions/ConfigurationDoneArguments"
+    },
+    "ConfigurationDoneRequest": {
+      "$ref": "#/definitions/ConfigurationDoneRequest"
+    },
+    "ConfigurationDoneResponse": {
+      "$ref": "#/definitions/ConfigurationDoneResponse"
+    },
+    "ContinueArguments": {
+      "$ref": "#/definitions/ContinueArguments"
+    },
+    "ContinueRequest": {
+      "$ref": "#/definitions/ContinueRequest"
+    },
+    "ContinueResponse": {
+      "$ref": "#/definitions/ContinueResponse"
+    },
+    "ContinuedEvent": {
+      "$ref": "#/definitions/ContinuedEvent"
+    },
+    "DataBreakpoint": {
+      "$ref": "#/definitions/DataBreakpoint"
+    },
+    "DataBreakpointAccessType": {
+      "$ref": "#/definitions/DataBreakpointAccessType"
+    },
+    "DataBreakpointInfoArguments": {
+      "$ref": "#/definitions/DataBreakpointInfoArguments"
+    },
+    "DataBreakpointInfoRequest": {
+      "$ref": "#/definitions/DataBreakpointInfoRequest"
+    },
+    "DataBreakpointInfoResponse": {
+      "$ref": "#/definitions/DataBreakpointInfoResponse"
+    },
+    "DisassembleArguments": {
+      "$ref": "#/definitions/DisassembleArguments"
+    },
+    "DisassembleRequest": {
+      "$ref": "#/definitions/DisassembleRequest"
+    },
+    "DisassembleResponse": {
+      "$ref": "#/definitions/DisassembleResponse"
+    },
+    "DisassembledInstruction": {
+      "$ref": "#/definitions/DisassembledInstruction"
+    },
+    "DisconnectArguments": {
+      "$ref": "#/definitions/DisconnectArguments"
+    },
+    "DisconnectRequest": {
+      "$ref": "#/definitions/DisconnectRequest"
+    },
+    "DisconnectResponse": {
+      "$ref": "#/definitions/DisconnectResponse"
+    },
+    "ErrorResponse": {
+      "$ref": "#/definitions/ErrorResponse"
+    },
+    "EvaluateArguments": {
+      "$ref": "#/definitions/EvaluateArguments"
+    },
+    "EvaluateRequest": {
+      "$ref": "#/definitions/EvaluateRequest"
+    },
+    "EvaluateResponse": {
+      "$ref": "#/definitions/EvaluateResponse"
+    },
+    "Event": {
+      "$ref": "#/definitions/Event"
+    },
+    "ExceptionBreakMode": {
+      "$ref": "#/definitions/ExceptionBreakMode"
+    },
+    "ExceptionBreakpointsFilter": {
+      "$ref": "#/definitions/ExceptionBreakpointsFilter"
+    },
+    "ExceptionDetails": {
+      "$ref": "#/definitions/ExceptionDetails"
+    },
+    "ExceptionFilterOptions": {
+      "$ref": "#/definitions/ExceptionFilterOptions"
+    },
+    "ExceptionInfoArguments": {
+      "$ref": "#/definitions/ExceptionInfoArguments"
+    },
+    "ExceptionInfoRequest": {
+      "$ref": "#/definitions/ExceptionInfoRequest"
+    },
+    "ExceptionInfoResponse": {
+      "$ref": "#/definitions/ExceptionInfoResponse"
+    },
+    "ExceptionOptions": {
+      "$ref": "#/definitions/ExceptionOptions"
+    },
+    "ExceptionPathSegment": {
+      "$ref": "#/definitions/ExceptionPathSegment"
+    },
+    "ExitedEvent": {
+      "$ref": "#/definitions/ExitedEvent"
+    },
+    "FunctionBreakpoint": {
+      "$ref": "#/definitions/FunctionBreakpoint"
+    },
+    "GotoArguments": {
+      "$ref": "#/definitions/GotoArguments"
+    },
+    "GotoRequest": {
+      "$ref": "#/definitions/GotoRequest"
+    },
+    "GotoResponse": {
+      "$ref": "#/definitions/GotoResponse"
+    },
+    "GotoTarget": {
+      "$ref": "#/definitions/GotoTarget"
+    },
+    "GotoTargetsArguments": {
+      "$ref": "#/definitions/GotoTargetsArguments"
+    },
+    "GotoTargetsRequest": {
+      "$ref": "#/definitions/GotoTargetsRequest"
+    },
+    "GotoTargetsResponse": {
+      "$ref": "#/definitions/GotoTargetsResponse"
+    },
+    "InitializeRequest": {
+      "$ref": "#/definitions/InitializeRequest"
+    },
+    "InitializeRequestArguments": {
+      "$ref": "#/definitions/InitializeRequestArguments"
+    },
+    "InitializeResponse": {
+      "$ref": "#/definitions/InitializeResponse"
+    },
+    "InitializedEvent": {
+      "$ref": "#/definitions/InitializedEvent"
+    },
+    "InstructionBreakpoint": {
+      "$ref": "#/definitions/InstructionBreakpoint"
+    },
+    "InvalidatedAreas": {
+      "$ref": "#/definitions/InvalidatedAreas"
+    },
+    "InvalidatedEvent": {
+      "$ref": "#/definitions/InvalidatedEvent"
+    },
+    "LaunchRequest": {
+      "$ref": "#/definitions/LaunchRequest"
+    },
+    "LaunchRequestArguments": {
+      "$ref": "#/definitions/LaunchRequestArguments"
+    },
+    "LaunchResponse": {
+      "$ref": "#/definitions/LaunchResponse"
+    },
+    "LoadedSourceEvent": {
+      "$ref": "#/definitions/LoadedSourceEvent"
+    },
+    "LoadedSourcesArguments": {
+      "$ref": "#/definitions/LoadedSourcesArguments"
+    },
+    "LoadedSourcesRequest": {
+      "$ref": "#/definitions/LoadedSourcesRequest"
+    },
+    "LoadedSourcesResponse": {
+      "$ref": "#/definitions/LoadedSourcesResponse"
+    },
+    "MemoryEvent": {
+      "$ref": "#/definitions/MemoryEvent"
+    },
+    "Message": {
+      "$ref": "#/definitions/Message"
+    },
+    "Module": {
+      "$ref": "#/definitions/Module"
+    },
+    "ModuleEvent": {
+      "$ref": "#/definitions/ModuleEvent"
+    },
+    "ModulesArguments": {
+      "$ref": "#/definitions/ModulesArguments"
+    },
+    "ModulesRequest": {
+      "$ref": "#/definitions/ModulesRequest"
+    },
+    "ModulesResponse": {
+      "$ref": "#/definitions/ModulesResponse"
+    },
+    "NextArguments": {
+      "$ref": "#/definitions/NextArguments"
+    },
+    "NextRequest": {
+      "$ref": "#/definitions/NextRequest"
+    },
+    "NextResponse": {
+      "$ref": "#/definitions/NextResponse"
+    },
+    "OutputEvent": {
+      "$ref": "#/definitions/OutputEvent"
+    },
+    "PauseArguments": {
+      "$ref": "#/definitions/PauseArguments"
+    },
+    "PauseRequest": {
+      "$ref": "#/definitions/PauseRequest"
+    },
+    "PauseResponse": {
+      "$ref": "#/definitions/PauseResponse"
+    },
+    "ProcessEvent": {
+      "$ref": "#/definitions/ProcessEvent"
+    },
+    "ProgressEndEvent": {
+      "$ref": "#/definitions/ProgressEndEvent"
+    },
+    "ProgressStartEvent": {
+      "$ref": "#/definitions/ProgressStartEvent"
+    },
+    "ProgressUpdateEvent": {
+      "$ref": "#/definitions/ProgressUpdateEvent"
+    },
+    "ProtocolMessage": {
+      "$ref": "#/definitions/ProtocolMessage"
+    },
+    "ReadMemoryArguments": {
+      "$ref": "#/definitions/ReadMemoryArguments"
+    },
+    "ReadMemoryRequest": {
+      "$ref": "#/definitions/ReadMemoryRequest"
+    },
+    "ReadMemoryResponse": {
+      "$ref": "#/definitions/ReadMemoryResponse"
+    },
+    "Request": {
+      "$ref": "#/definitions/Request"
+    },
+    "Response": {
+      "$ref": "#/definitions/Response"
+    },
+    "RestartArguments": {
+      "$ref": "#/definitions/RestartArguments"
+    },
+    "RestartFrameArguments": {
+      "$ref": "#/definitions/RestartFrameArguments"
+    },
+    "RestartFrameRequest": {
+      "$ref": "#/definitions/RestartFrameRequest"
+    },
+    "RestartFrameResponse": {
+      "$ref": "#/definitions/RestartFrameResponse"
+    },
+    "RestartRequest": {
+      "$ref": "#/definitions/RestartRequest"
+    },
+    "RestartResponse": {
+      "$ref": "#/definitions/RestartResponse"
+    },
+    "ReverseContinueArguments": {
+      "$ref": "#/definitions/ReverseContinueArguments"
+    },
+    "ReverseContinueRequest": {
+      "$ref": "#/definitions/ReverseContinueRequest"
+    },
+    "ReverseContinueResponse": {
+      "$ref": "#/definitions/ReverseContinueResponse"
+    },
+    "RunInTerminalRequest": {
+      "$ref": "#/definitions/RunInTerminalRequest"
+    },
+    "RunInTerminalRequestArguments": {
+      "$ref": "#/definitions/RunInTerminalRequestArguments"
+    },
+    "RunInTerminalResponse": {
+      "$ref": "#/definitions/RunInTerminalResponse"
+    },
+    "Scope": {
+      "$ref": "#/definitions/Scope"
+    },
+    "ScopesArguments": {
+      "$ref": "#/definitions/ScopesArguments"
+    },
+    "ScopesRequest": {
+      "$ref": "#/definitions/ScopesRequest"
+    },
+    "ScopesResponse": {
+      "$ref": "#/definitions/ScopesResponse"
+    },
+    "SetBreakpointsArguments": {
+      "$ref": "#/definitions/SetBreakpointsArguments"
+    },
+    "SetBreakpointsRequest": {
+      "$ref": "#/definitions/SetBreakpointsRequest"
+    },
+    "SetBreakpointsResponse": {
+      "$ref": "#/definitions/SetBreakpointsResponse"
+    },
+    "SetDataBreakpointsArguments": {
+      "$ref": "#/definitions/SetDataBreakpointsArguments"
+    },
+    "SetDataBreakpointsRequest": {
+      "$ref": "#/definitions/SetDataBreakpointsRequest"
+    },
+    "SetDataBreakpointsResponse": {
+      "$ref": "#/definitions/SetDataBreakpointsResponse"
+    },
+    "SetExceptionBreakpointsArguments": {
+      "$ref": "#/definitions/SetExceptionBreakpointsArguments"
+    },
+    "SetExceptionBreakpointsRequest": {
+      "$ref": "#/definitions/SetExceptionBreakpointsRequest"
+    },
+    "SetExceptionBreakpointsResponse": {
+      "$ref": "#/definitions/SetExceptionBreakpointsResponse"
+    },
+    "SetExpressionArguments": {
+      "$ref": "#/definitions/SetExpressionArguments"
+    },
+    "SetExpressionRequest": {
+      "$ref": "#/definitions/SetExpressionRequest"
+    },
+    "SetExpressionResponse": {
+      "$ref": "#/definitions/SetExpressionResponse"
+    },
+    "SetFunctionBreakpointsArguments": {
+      "$ref": "#/definitions/SetFunctionBreakpointsArguments"
+    },
+    "SetFunctionBreakpointsRequest": {
+      "$ref": "#/definitions/SetFunctionBreakpointsRequest"
+    },
+    "SetFunctionBreakpointsResponse": {
+      "$ref": "#/definitions/SetFunctionBreakpointsResponse"
+    },
+    "SetInstructionBreakpointsArguments": {
+      "$ref": "#/definitions/SetInstructionBreakpointsArguments"
+    },
+    "SetInstructionBreakpointsRequest": {
+      "$ref": "#/definitions/SetInstructionBreakpointsRequest"
+    },
+    "SetInstructionBreakpointsResponse": {
+      "$ref": "#/definitions/SetInstructionBreakpointsResponse"
+    },
+    "SetVariableArguments": {
+      "$ref": "#/definitions/SetVariableArguments"
+    },
+    "SetVariableRequest": {
+      "$ref": "#/definitions/SetVariableRequest"
+    },
+    "SetVariableResponse": {
+      "$ref": "#/definitions/SetVariableResponse"
+    },
+    "Source": {
+      "$ref": "#/definitions/Source"
+    },
+    "SourceArguments": {
+      "$ref": "#/definitions/SourceArguments"
+    },
+    "SourceBreakpoint": {
+      "$ref": "#/definitions/SourceBreakpoint"
+    },
+    "SourceRequest": {
+      "$ref": "#/definitions/SourceRequest"
+    },
+    "SourceResponse": {
+      "$ref": "#/definitions/SourceResponse"
+    },
+    "StackFrame": {
+      "$ref": "#/definitions/StackFrame"
+    },
+    "StackFrameFormat": {
+      "$ref": "#/definitions/StackFrameFormat"
+    },
+    "StackTraceArguments": {
+      "$ref": "#/definitions/StackTraceArguments"
+    },
+    "StackTraceRequest": {
+      "$ref": "#/definitions/StackTraceRequest"
+    },
+    "StackTraceResponse": {
+      "$ref": "#/definitions/StackTraceResponse"
+    },
+    "StartDebuggingRequest": {
+      "$ref": "#/definitions/StartDebuggingRequest"
+    },
+    "StartDebuggingRequestArguments": {
+      "$ref": "#/definitions/StartDebuggingRequestArguments"
+    },
+    "StartDebuggingResponse": {
+      "$ref": "#/definitions/StartDebuggingResponse"
+    },
+    "StepBackArguments": {
+      "$ref": "#/definitions/StepBackArguments"
+    },
+    "StepBackRequest": {
+      "$ref": "#/definitions/StepBackRequest"
+    },
+    "StepBackResponse": {
+      "$ref": "#/definitions/StepBackResponse"
+    },
+    "StepInArguments": {
+      "$ref": "#/definitions/StepInArguments"
+    },
+    "StepInRequest": {
+      "$ref": "#/definitions/StepInRequest"
+    },
+    "StepInResponse": {
+      "$ref": "#/definitions/StepInResponse"
+    },
+    "StepInTarget": {
+      "$ref": "#/definitions/StepInTarget"
+    },
+    "StepInTargetsArguments": {
+      "$ref": "#/definitions/StepInTargetsArguments"
+    },
+    "StepInTargetsRequest": {
+      "$ref": "#/definitions/StepInTargetsRequest"
+    },
+    "StepInTargetsResponse": {
+      "$ref": "#/definitions/StepInTargetsResponse"
+    },
+    "StepOutArguments": {
+      "$ref": "#/definitions/StepOutArguments"
+    },
+    "StepOutRequest": {
+      "$ref": "#/definitions/StepOutRequest"
+    },
+    "StepOutResponse": {
+      "$ref": "#/definitions/StepOutResponse"
+    },
+    "SteppingGranularity": {
+      "$ref": "#/definitions/SteppingGranularity"
+    },
+    "StoppedEvent": {
+      "$ref": "#/definitions/StoppedEvent"
+    },
+    "TerminateArguments": {
+      "$ref": "#/definitions/TerminateArguments"
+    },
+    "TerminateRequest": {
+      "$ref": "#/definitions/TerminateRequest"
+    },
+    "TerminateResponse": {
+      "$ref": "#/definitions/TerminateResponse"
+    },
+    "TerminateThreadsArguments": {
+      "$ref": "#/definitions/TerminateThreadsArguments"
+    },
+    "TerminateThreadsRequest": {
+      "$ref": "#/definitions/TerminateThreadsRequest"
+    },
+    "TerminateThreadsResponse": {
+      "$ref": "#/definitions/TerminateThreadsResponse"
+    },
+    "TerminatedEvent": {
+      "$ref": "#/definitions/TerminatedEvent"
+    },
+    "Thread": {
+      "$ref": "#/definitions/Thread"
+    },
+    "ThreadEvent": {
+      "$ref": "#/definitions/ThreadEvent"
+    },
+    "ThreadsRequest": {
+      "$ref": "#/definitions/ThreadsRequest"
+    },
+    "ThreadsResponse": {
+      "$ref": "#/definitions/ThreadsResponse"
+    },
+    "ValueFormat": {
+      "$ref": "#/definitions/ValueFormat"
+    },
+    "Variable": {
+      "$ref": "#/definitions/Variable"
+    },
+    "VariablePresentationHint": {
+      "$ref": "#/definitions/VariablePresentationHint"
+    },
+    "VariablesArguments": {
+      "$ref": "#/definitions/VariablesArguments"
+    },
+    "VariablesRequest": {
+      "$ref": "#/definitions/VariablesRequest"
+    },
+    "VariablesResponse": {
+      "$ref": "#/definitions/VariablesResponse"
+    },
+    "WriteMemoryArguments": {
+      "$ref": "#/definitions/WriteMemoryArguments"
+    },
+    "WriteMemoryRequest": {
+      "$ref": "#/definitions/WriteMemoryRequest"
+    },
+    "WriteMemoryResponse": {
+      "$ref": "#/definitions/WriteMemoryResponse"
+    }
+  }
+}
