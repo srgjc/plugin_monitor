@@ -3,7 +3,6 @@ package org.tzi.use.monitor.adapter.python;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.tzi.use.monitor.adapter.python.dap.*;
-import org.tzi.use.monitor.adapter.python.tmp.*;
 import org.tzi.use.monitor.plugins.monitor.vm.mm.python.PyTypeRaw;
 
 import java.io.*;
@@ -47,52 +46,26 @@ public class DebugpyClient {
         initArgs.setLinesStartAt1(true);
         initArgs.setColumnsStartAt1(true);
         initArgs.setPathFormat("path");
-//        var initArgs = new InitializeRequest.InitializeRequestArguments();
-//        initArgs.setAdapterID("USE");
-//        initArgs.setLinesStartAt1(true);
-//        initArgs.setColumnsStartAt1(true);
-//        initArgs.setPathFormat("path");
-//        var initReq = new InitializeRequest(REQUEST_COUNTER++, initArgs);
-//        var initResp = (InitializeResponse) sendRequest(initReq);
+        var initReq = new InitializeRequestClass();
+        initReq.setSeq(REQUEST_COUNTER++);
+        initReq.setArguments(initArgs);
+        var initResp = (InitializeResponseClass) sendRequest(initReq);
 
         // Attach
-        var attachArgs = new AttachRequest.AttachRequestArguments();
+        var attachArgs = new AttachRequestArgumentsClass();
         attachArgs.setConnect(Map.of("host", host, "port", port));
         attachArgs.setPathMappings(List.of(Map.of("localRoot", WORKSPACE, "remoteRoot", ".")));
-        attachArgs.setClientOS(System.getProperty("os.name"));
+        attachArgs.setClientOs("unix");
         attachArgs.setDebugOptions(List.of("RedirectOutput", "ShowReturnValue"));
         attachArgs.setShowReturnValue(true);
         attachArgs.setJustMyCode(true);
         attachArgs.setWorkspaceFolder(WORKSPACE);
         attachArgs.setSessionId(UUID.randomUUID().toString());
-        var attachReq = new AttachRequest(REQUEST_COUNTER++, attachArgs);
+        var attachReq = new AttachRequestClass();
+        attachReq.setArguments(attachArgs);
+        attachReq.setSeq(REQUEST_COUNTER++);
         sendAsyncRequest(attachReq);
 
-//        arguments.put("name", "DebugpyClient");
-//        arguments.put("type", "debugpy");
-//        arguments.put("request", "attach");
-//        var connect = arguments.putObject("connect");
-//        connect.put("host", host);
-//        connect.put("port", port);
-//        // TODO: Add localRoot setting
-//        ArrayNode pathMappings = mapper.createArrayNode();
-//        ObjectNode mapping = mapper.createObjectNode();
-//        mapping.put("localRoot", WORKSPACE);
-//        mapping.put("remoteRoot", ".");
-//        pathMappings.add(mapping);
-//        arguments.set("pathMappings", pathMappings);
-//        arguments.put("__configurationTarget", 6);
-//        arguments.put("clientOS", "unix");
-//        var debugOptions = arguments.putArray("debugOptions");
-//        debugOptions.add("RedirectOutput");
-//        debugOptions.add("ShowReturnValue");
-//        arguments.put("justMyCode", true);
-//        arguments.put("showReturnValue", true);
-//        arguments.put("workspaceFolder", WORKSPACE);
-//        arguments.put("__sessionId", UUID.randomUUID().toString());
-//        attachReq.setArguments(arguments);
-//        sendAsyncRequest(attachReq);
-//
         // TODO wait for init event
         try {
             System.out.println("Waiting for init event...");
@@ -101,30 +74,26 @@ public class DebugpyClient {
         } catch (InterruptedException | ExecutionException e) {
             return false;
         }
-//
-//        System.out.println("Sending configuration done...");
-//        //Configuration Done
-//        var confDoneReq = new Request();
-//        var confMsg = new DAPMessage();
-//        confMsg.setSeq(currReqSeq++);
-//        confMsg.setType("request");
-//        confDoneReq.setProtocolMessage(confMsg);
-//        confDoneReq.setCommand("configurationDone");
-//        // TODO Fix should not be async request
-//        //Response confDoneResp = (Response) sendRequest(confDoneReq);
-//        sendAsyncRequest(confDoneReq);
-//
-//        // Wait for attach async response
-//        // TODO FIX! responseQueue instead of single slot
-//        //Response attachResponse = (Response) waitForAsyncResponse();
-//        //return initResp.getSuccess() && attachResponse.getSuccess() && confDoneResp.getSuccess();
-//        try {
-//            java.lang.Thread.sleep(1000);
-//        } catch (InterruptedException e) {
-//            throw new RuntimeException(e);
-//        }
-//        return initResp.getSuccess();
-        return true;
+
+        System.out.println("Sending configuration done...");
+        //Configuration Done
+
+        var confDoneReq = new ConfigurationDoneRequestClass();
+        confDoneReq.setSeq(REQUEST_COUNTER++);
+        // TODO Fix should not be async request
+        //Response confDoneResp = (Response) sendRequest(confDoneReq);
+        sendAsyncRequest(confDoneReq);
+
+        // Wait for attach async response
+        // TODO FIX! responseQueue instead of single slot
+        //Response attachResponse = (Response) waitForAsyncResponse();
+        //return initResp.getSuccess() && attachResponse.getSuccess() && confDoneResp.getSuccess();
+        try {
+            java.lang.Thread.sleep(1000);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+        return initResp.getSuccess();
     }
 
     PyTypeRaw getVMType(String qualifiedClassName) {
@@ -159,6 +128,13 @@ public class DebugpyClient {
     }
 
     private DAPResponse pause() {
+        stoppedEvent = new CompletableFuture<>();
+
+        var pauseArgs = new PauseRequestArguments();
+        pauseArgs.setThreadID(2);
+        var pauseReq = new PauseRequestClass();
+        pauseReq.setSeq(REQUEST_COUNTER++);
+
 //        stoppedEvent = new CompletableFuture<>();
 //        var tid = getThreadId("MainThread");
 //        Request pauseReq = new Request();
@@ -208,18 +184,13 @@ public class DebugpyClient {
     }
 
     private int getCurrentFrameId(int threadId) {
-//        Request stackTraceReq = new Request();
-//        var msg = new DAPMessage();
-//        msg.setSeq(currReqSeq++);
-//        msg.setType("request");
-//        stackTraceReq.setProtocolMessage(msg);
-//        stackTraceReq.setCommand("stackTrace");
-//        ObjectNode arguments = mapper.createObjectNode();
-//        arguments.put("threadId", threadId);
-//        stackTraceReq.setArguments(arguments);
-//        Response resp = (Response) sendRequest(stackTraceReq);
-//        return resp.getBody().get("stackFrames").get(0).get("id").asInt();
-        return 1;
+        var stackTraceArgs = new StackTraceRequestArguments();
+        stackTraceArgs.setThreadID(threadId);
+        var stackTraceReq = new StackTraceRequestClass();
+        stackTraceReq.setSeq(REQUEST_COUNTER++);
+        stackTraceReq.setArguments(stackTraceArgs);
+        var stackTraceResp = (StackTraceResponseClass) sendRequest(stackTraceReq);
+        return (int) stackTraceResp.getBody().getStackFrames()[0].getID();
     }
 
     private void getStackStrace() {
@@ -283,9 +254,6 @@ public class DebugpyClient {
                     }
                     String json = new String(body);
                     System.out.println("Received json response: " + json);
-                    if (json.contains("\"type\": \"event\"")) {
-                        continue;
-                    }
                     DAPMessage msg = MessageMapper.parseMessage(json);
                     System.out.println("Parsed json response to object...");
                     if (msg == null) {
@@ -306,24 +274,24 @@ public class DebugpyClient {
                         //}
                     }
                     if (msg instanceof DAPEvent) {
-                        if (msg instanceof InitializedEvent) {
+                        if (msg instanceof InitializedEventClass) {
                             initEvent.complete((DAPEvent) msg);
                         }
                     }
-//                    if (msg instanceof DAPEvent) {
-//                        System.out.println("Event instance: " + msg);
-//                        if (msg instanceof Event) {
-//                            if (((Event) msg).getEvent().equals("initialized")) {
-//                                initEvent.complete((Event) msg);
-//                            }
-//                            if (((Event) msg).getEvent().equals("stopped")) {
-//                               stoppedEvent.complete((Event) msg);
-//                            }
-//                        }
-//                        if (msg instanceof BreakpointEvent) {
-//                            handleBreakpoint((BreakpointEvent) msg);
-//                        }
-//                    }
+                    if (msg instanceof DAPEvent) {
+                        System.out.println("Event instance: " + msg);
+                        if (msg instanceof Event) {
+                            if (((Event) msg).getEvent().equals("initialized")) {
+                                initEvent.complete((DAPEvent) msg);
+                            }
+                            if (((Event) msg).getEvent().equals("stopped")) {
+                               stoppedEvent.complete((DAPEvent) msg);
+                            }
+                        }
+                        if (msg instanceof BreakpointEventClass) {
+                            handleBreakpoint((BreakpointEventClass) msg);
+                        }
+                    }
                 }
             } catch (Exception e) {
                 throw new RuntimeException(e);
@@ -333,7 +301,7 @@ public class DebugpyClient {
         readerThread.start();
     }
 
-    private void handleBreakpoint(BreakpointEvent event) {
+    private void handleBreakpoint(BreakpointEventClass event) {
         breakpointHandler.handleBreakpoint(event);
     }
 

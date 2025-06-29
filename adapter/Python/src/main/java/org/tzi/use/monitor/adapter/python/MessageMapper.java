@@ -1,10 +1,9 @@
 package org.tzi.use.monitor.adapter.python;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.tzi.use.monitor.adapter.python.tmp.DAPMessage;
-import org.tzi.use.monitor.adapter.python.tmp.Event;
-import org.tzi.use.monitor.adapter.python.tmp.Response;
+import org.tzi.use.monitor.adapter.python.dap.*;
 
 /**
  * Maps a DAP json message to its respective POJO
@@ -17,8 +16,28 @@ public class MessageMapper {
         JsonNode tree = mapper.readTree(json);
         String type = tree.get("type").asText();
         return switch (type) {
-            case "response" -> mapper.readValue(json, Response.class);
-            case "event" -> mapper.readValue(json, Event.class);
+            case "response" -> parseResponse(tree, json);
+            case "event" -> parseEvent(tree, json);
+            default -> null;
+        };
+    }
+
+    private static DAPResponse parseResponse(JsonNode tree, String json) throws JsonProcessingException {
+        String command = tree.get("command").asText();
+        return switch (command) {
+            case "initialize" -> mapper.readValue(json, InitializeResponseClass.class);
+            case "attach" -> mapper.readValue(json, AttachResponseClass.class);
+            case "configurationDone" -> mapper.readValue(json, ConfigurationDoneResponseClass.class);
+            default -> null;
+        };
+    }
+
+    private static DAPEvent parseEvent(JsonNode tree, String json) throws JsonProcessingException {
+        String event = tree.get("event").asText();
+        return switch (event) {
+            case "initialized" -> mapper.readValue(json, InitializedEventClass.class);
+            case "breakpoint" -> mapper.readValue(json, BreakpointEventClass.class);
+            case "stopped" -> mapper.readValue(json, StoppedEventClass.class);
             default -> null;
         };
     }

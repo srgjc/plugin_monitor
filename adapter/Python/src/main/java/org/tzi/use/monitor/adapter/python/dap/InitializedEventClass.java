@@ -1,0 +1,68 @@
+package org.tzi.use.monitor.adapter.python.dap;
+
+import com.fasterxml.jackson.annotation.*;
+
+/**
+ * Base class of requests, responses, and events.
+ *
+ * A debug adapter initiated event.
+ *
+ * This event indicates that the debug adapter is ready to accept configuration requests
+ * (e.g. `setBreakpoints`, `setExceptionBreakpoints`).
+ * A debug adapter is expected to send this event when it is ready to accept configuration
+ * requests (but not before the `initialize` request has finished).
+ * The sequence of events/requests is as follows:
+ * - adapters sends `initialized` event (after the `initialize` request has returned)
+ * - client sends zero or more `setBreakpoints` requests
+ * - client sends one `setFunctionBreakpoints` request (if corresponding capability
+ * `supportsFunctionBreakpoints` is true)
+ * - client sends a `setExceptionBreakpoints` request if one or more
+ * `exceptionBreakpointFilters` have been defined (or if `supportsConfigurationDoneRequest`
+ * is not true)
+ * - client sends other future configuration requests
+ * - client sends one `configurationDone` request to indicate the end of the configuration.
+ */
+@JsonInclude(JsonInclude.Include.NON_NULL)
+public class InitializedEventClass implements DAPEvent {
+    private long seq;
+    private String type;
+    private Restart body;
+    private String event;
+
+    /**
+     * Sequence number of the message (also known as message ID). The `seq` for the first
+     * message sent by a client or debug adapter is 1, and for each subsequent message is 1
+     * greater than the previous message sent by that actor. `seq` can be used to order
+     * requests, responses, and events, and to associate requests with their corresponding
+     * responses. For protocol messages of type `request` the sequence number can be used to
+     * cancel the request.
+     */
+    @JsonProperty("seq")
+    public long getSeq() { return seq; }
+    @JsonProperty("seq")
+    public void setSeq(long value) { this.seq = value; }
+
+    /**
+     * Message type.
+     */
+    @JsonProperty("type")
+    public String getType() { return type; }
+    @JsonProperty("type")
+    public void setType(String value) { this.type = value; }
+
+    /**
+     * Event-specific information.
+     */
+    @JsonProperty("body")
+    public Restart getBody() { return body; }
+    @JsonProperty("body")
+    public void setBody(Restart value) { this.body = value; }
+
+    /**
+     * Type of event.
+     */
+    @JsonProperty("event")
+    public String getEvent() { return event; }
+    @JsonProperty("event")
+    public void setEvent(String value) { this.event = value; }
+}

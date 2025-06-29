@@ -11,8 +11,8 @@ fi
 
 jq '
   .definitions
-  | keys
-  | map({ key: ., value: { "$ref": "#/definitions/\(. )" } })
+  | to_entries
+  | map({ key: .key, value: { "$ref": "#/definitions/\(.key)" } })
   | from_entries
   | { properties: . }
 ' "$INPUT_SCHEMA" > "$OUTPUT_FILE"

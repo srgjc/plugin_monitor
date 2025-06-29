@@ -1,0 +1,27 @@
+package org.tzi.use.monitor.adapter.python.dap;
+
+import java.io.IOException;
+import com.fasterxml.jackson.annotation.*;
+
+/**
+ * All dictionary values must be strings.
+ *
+ * Logical areas that can be invalidated by the `invalidated` event.
+ */
+public enum WriteMemoryRequestCommand {
+    WRITE_MEMORY;
+
+    @JsonValue
+    public String toValue() {
+        switch (this) {
+            case WRITE_MEMORY: return "writeMemory";
+        }
+        return null;
+    }
+
+    @JsonCreator
+    public static WriteMemoryRequestCommand forValue(String value) throws IOException {
+        if (value.equals("writeMemory")) return WRITE_MEMORY;
+        throw new IOException("Cannot deserialize WriteMemoryRequestCommand");
+    }
+}

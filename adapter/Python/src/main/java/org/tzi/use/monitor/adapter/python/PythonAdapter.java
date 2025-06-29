@@ -1,6 +1,6 @@
 package org.tzi.use.monitor.adapter.python;
 
-import org.tzi.use.monitor.adapter.python.tmp.BreakpointEvent;
+import org.tzi.use.monitor.adapter.python.dap.BreakpointEventClass;
 import org.tzi.use.monitor.plugins.monitor.vm.mm.python.PyObject;
 import org.tzi.use.monitor.plugins.monitor.vm.mm.python.PyObjectRaw;
 import org.tzi.use.monitor.plugins.monitor.vm.mm.python.PyType;
@@ -174,7 +174,7 @@ public class PythonAdapter extends AbstractVMAdapter {
     private class Handler implements BreakpointHandler {
 
         @Override
-        public void handleBreakpoint(BreakpointEvent event) {
+        public void handleBreakpoint(BreakpointEventClass event) {
             // TODO
         }
     }

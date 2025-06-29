@@ -1,4 +1,4 @@
 package org.tzi.use.monitor.adapter.python.dap;
 
-public interface DAPEvent {
+public interface DAPEvent extends DAPMessage {
 }

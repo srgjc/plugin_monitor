@@ -27,22 +27,6 @@
           </execution>
         </executions>
       </plugin>
-      <plugin>
-        <groupId>org.jsonschema2pojo</groupId>
-        <artifactId>jsonschema2pojo-maven-plugin</artifactId>
-        <version>1.2.2</version>
-        <executions>
-          <execution>
-            <goals>
-              <goal>generate</goal>
-            </goals>
-          </execution>
-        </executions>
-        <configuration>
-          <sourceDirectory>${basedir}/src/main/resources/protocol/debugProtocol.json</sourceDirectory>
-          <targetPackage>org.tzi.use.monitor.adapter.python.dap</targetPackage>
-        </configuration>
-      </plugin>
     </plugins>
   </build>
   <dependencies>

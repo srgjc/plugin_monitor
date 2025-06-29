@@ -1,0 +1,47 @@
+package org.tzi.use.monitor.adapter.python.dap;
+
+import com.fasterxml.jackson.annotation.*;
+
+/**
+ * Arguments for `stepIn` request.
+ */
+public class StepInArgumentsClass {
+    private SteppingGranularity granularity;
+    private Boolean singleThread;
+    private Long targetID;
+    private long threadID;
+
+    /**
+     * Stepping granularity. If no granularity is specified, a granularity of `statement` is
+     * assumed.
+     */
+    @JsonProperty("granularity")
+    public SteppingGranularity getGranularity() { return granularity; }
+    @JsonProperty("granularity")
+    public void setGranularity(SteppingGranularity value) { this.granularity = value; }
+
+    /**
+     * If this flag is true, all other suspended threads are not resumed.
+     */
+    @JsonProperty("singleThread")
+    public Boolean getSingleThread() { return singleThread; }
+    @JsonProperty("singleThread")
+    public void setSingleThread(Boolean value) { this.singleThread = value; }
+
+    /**
+     * Id of the target to step into.
+     */
+    @JsonProperty("targetId")
+    public Long getTargetID() { return targetID; }
+    @JsonProperty("targetId")
+    public void setTargetID(Long value) { this.targetID = value; }
+
+    /**
+     * Specifies the thread for which to resume execution for one step-into (of the given
+     * granularity).
+     */
+    @JsonProperty("threadId")
+    public long getThreadID() { return threadID; }
+    @JsonProperty("threadId")
+    public void setThreadID(long value) { this.threadID = value; }
+}
