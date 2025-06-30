@@ -7,9 +7,10 @@ import com.fasterxml.jackson.annotation.*;
  *
  * A debug adapter initiated event.
  */
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class Event {
     private long seq;
-    private BreakpointEventType type;
+    private String type;
     private Restart body;
     private String event;
 
@@ -30,9 +31,9 @@ public class Event {
      * Message type.
      */
     @JsonProperty("type")
-    public BreakpointEventType getType() { return type; }
+    public String getType() { return type; }
     @JsonProperty("type")
-    public void setType(BreakpointEventType value) { this.type = value; }
+    public void setType(String value) { this.type = value; }
 
     /**
      * Event-specific information.

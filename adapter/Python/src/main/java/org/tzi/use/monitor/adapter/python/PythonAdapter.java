@@ -93,12 +93,13 @@ public class PythonAdapter extends AbstractVMAdapter {
     @Override
     public void resume() {
         System.out.println("Resuming debugpy server...");
-
+        debugpyClient.resume();
     }
 
     @Override
     public void suspend() {
         System.out.println("Suspending debugpy server...");
+        debugpyClient.pause();
     }
 
     @Override

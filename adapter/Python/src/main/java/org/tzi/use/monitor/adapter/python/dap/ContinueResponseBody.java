@@ -2,6 +2,7 @@ package org.tzi.use.monitor.adapter.python.dap;
 
 import com.fasterxml.jackson.annotation.*;
 
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class ContinueResponseBody {
     private Boolean allThreadsContinued;
 

@@ -10,9 +10,10 @@ import com.fasterxml.jackson.annotation.*;
  * Response to `pause` request. This is just an acknowledgement, so no body field is
  * required.
  */
-public class PauseResponseClass {
+@JsonInclude(JsonInclude.Include.NON_NULL)
+public class PauseResponseClass implements DAPResponse {
     private long seq;
-    private AttachResponseType type;
+    private String type;
     private Restart body;
     private String command;
     private String message;
@@ -36,9 +37,9 @@ public class PauseResponseClass {
      * Message type.
      */
     @JsonProperty("type")
-    public AttachResponseType getType() { return type; }
+    public String getType() { return type; }
     @JsonProperty("type")
-    public void setType(AttachResponseType value) { this.type = value; }
+    public void setType(String value) { this.type = value; }
 
     /**
      * Contains request result if success is true and error details if success is false.

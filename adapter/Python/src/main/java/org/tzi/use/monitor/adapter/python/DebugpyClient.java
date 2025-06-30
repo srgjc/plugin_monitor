@@ -3,6 +3,8 @@ package org.tzi.use.monitor.adapter.python;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.tzi.use.monitor.adapter.python.dap.*;
+import org.tzi.use.monitor.adapter.python.dap.Thread;
+import org.tzi.use.monitor.plugins.monitor.vm.mm.python.PyFieldRaw;
 import org.tzi.use.monitor.plugins.monitor.vm.mm.python.PyTypeRaw;
 
 import java.io.*;
@@ -97,90 +99,69 @@ public class DebugpyClient {
     }
 
     PyTypeRaw getVMType(String qualifiedClassName) {
-//        // Pause
-//        pause();
-//
-//        Request dapRequest = new Request();
-//        var msg = new DAPMessage();
-//        msg.setSeq(currReqSeq++);
-//        msg.setType("request");
-//        dapRequest.setCommand("evaluate");
-//        dapRequest.setProtocolMessage(msg);
-//        var evalExp = PyEvalExBuilder.getClassFieldTypesExp(qualifiedClassName);
-//        ObjectNode arguments = mapper.createObjectNode();
-//        // arguments.put("context", "watch"); // Not required?
-//        arguments.put("expression", evalExp);
-//        // arguments.put("frameId", getCurrentFrameId(getThreadId("MainThread"))); // Not required?
-//        EvaluateRequest req = new EvaluateRequest();
-//        dapRequest.setArguments(arguments);
-//        req.setDapRequest(dapRequest);
-//        DAPResponse evalResp = sendRequest(req);
-//
-//        // New internal PyType
-//        var rawType = new PyTypeRaw(qualifiedClassName);
-//        var rawField1 = new PyFieldRaw("name", "string", null);
-//        var rawField2 = new PyFieldRaw("salary", "int", null);
-//        rawType.setFields(List.of(rawField1, rawField2));
-//
-//        // Resume
-//        return rawType;
-        return null;
+        // Pause
+        pause();
+
+        var evalArgs = new EvaluateRequestArguments();
+        evalArgs.setContext("watch");
+        evalArgs.setFrameID((long) getCurrentFrameId(getThreadId("MainThread")));
+        evalArgs.setExpression(PyEvalExBuilder.getClassFieldTypesExp(qualifiedClassName));
+        var evalReq = new EvaluateRequestClass();
+        evalReq.setArguments(evalArgs);
+        var evalResp = (EvaluateResponseClass) sendRequest(evalReq);
+
+        // New internal PyType
+        var rawType = new PyTypeRaw(qualifiedClassName);
+        var rawField1 = new PyFieldRaw("name", "string", null);
+        var rawField2 = new PyFieldRaw("salary", "int", null);
+        rawType.setFields(List.of(rawField1, rawField2));
+
+        // Resume
+        resume();
+        return rawType;
     }
 
-    private DAPResponse pause() {
+    protected boolean pause() {
         stoppedEvent = new CompletableFuture<>();
 
         var pauseArgs = new PauseRequestArguments();
-        pauseArgs.setThreadID(2);
+        pauseArgs.setThreadID(getThreadId("MainThread"));
         var pauseReq = new PauseRequestClass();
         pauseReq.setSeq(REQUEST_COUNTER++);
+        pauseReq.setArguments(pauseArgs);
+        var pauseResp = (PauseResponseClass) sendRequest(pauseReq);
+        try {
+            System.out.println("Waiting for stopped event...");
+            stoppedEvent.get();
+            System.out.println("Got stopped event. Continuing...");
+        } catch (InterruptedException | ExecutionException e) {
+            throw new RuntimeException(e);
+        }
+        return pauseResp.getSuccess();
+    }
 
-//        stoppedEvent = new CompletableFuture<>();
-//        var tid = getThreadId("MainThread");
-//        Request pauseReq = new Request();
-//        pauseReq.setCommand("pause");
-//        var msg = new DAPMessage();
-//        msg.setSeq(currReqSeq++);
-//        msg.setType("request");
-//        ObjectNode arguments = mapper.createObjectNode();
-//        arguments.put("threadId", tid);
-//        pauseReq.setArguments(arguments);
-//        pauseReq.setProtocolMessage(msg);
-//        var res = sendRequest(pauseReq);
-//        try {
-//            System.out.println("Waiting for stopped event...");
-//            stoppedEvent.get();
-//        } catch (InterruptedException | ExecutionException e) {
-//            throw new RuntimeException(e);
-//        }
-//        return res;
-        return null;
+    protected boolean resume() {
+        var continueArgs = new ContinueRequestArguments();
+        continueArgs.setThreadID(getThreadId("MainThread"));
+        var continueReq = new ContinueRequestClass();
+        continueReq.setSeq(REQUEST_COUNTER++);
+        continueReq.setArguments(continueArgs);
+        var continueResp = (ContinueResponseClass) sendRequest(continueReq);
+        return continueResp.getSuccess();
     }
 
     private int getThreadId(String threadName) {
-//        System.out.println("Getting thread id: " + threadName);
-//        Request dapRequest = new Request();
-//        var msg = new DAPMessage();
-//        msg.setSeq(currReqSeq++);
-//        msg.setType("request");
-//        dapRequest.setCommand("threads");
-//        dapRequest.setProtocolMessage(msg);
-//        ThreadsResponse threadsResponse = (ThreadsResponse) sendRequest(dapRequest);
-//        JsonNode body = threadsResponse.getResponse().getBody();
-//        JsonNode threadsNode = body.get("threads");
-//
-//        ObjectMapper mapper = new ObjectMapper();
-//        List<Thread> threads = mapper.convertValue(
-//                threadsNode,
-//                new TypeReference<>() {}
-//        );
-//        for (Thread thread : threads) {
-//            if (thread.getName().equals(threadName)) {
-//                System.out.println("Found thread: " + thread.getName() + " with id: " + thread.getId());
-//                return thread.getId();
-//            }
-//        }
-          return -1;
+        System.out.println("Getting thread id: " + threadName);
+        var threadsReq = new ThreadsRequestClass();
+        threadsReq.setSeq(REQUEST_COUNTER++);
+        var threadsResp = (ThreadsResponseClass) sendRequest(threadsReq);
+        for (Thread thread : threadsResp.getBody().getThreads()) {
+            if (thread.getName().equals(threadName)) {
+                System.out.println("Found thread: " + thread.getName() + " with id: " + thread.getID());
+                return (int) thread.getID();
+            }
+        }
+        return -1;
     }
 
     private int getCurrentFrameId(int threadId) {
@@ -274,19 +255,12 @@ public class DebugpyClient {
                         //}
                     }
                     if (msg instanceof DAPEvent) {
+                        System.out.println("Event instance: " + msg);
                         if (msg instanceof InitializedEventClass) {
                             initEvent.complete((DAPEvent) msg);
                         }
-                    }
-                    if (msg instanceof DAPEvent) {
-                        System.out.println("Event instance: " + msg);
-                        if (msg instanceof Event) {
-                            if (((Event) msg).getEvent().equals("initialized")) {
-                                initEvent.complete((DAPEvent) msg);
-                            }
-                            if (((Event) msg).getEvent().equals("stopped")) {
-                               stoppedEvent.complete((DAPEvent) msg);
-                            }
+                        if (msg instanceof StoppedEventClass) {
+                           stoppedEvent.complete((DAPEvent) msg);
                         }
                         if (msg instanceof BreakpointEventClass) {
                             handleBreakpoint((BreakpointEventClass) msg);

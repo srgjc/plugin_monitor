@@ -10,11 +10,12 @@ import com.fasterxml.jackson.annotation.*;
  * Evaluates the given expression in the context of the topmost stack frame.
  * The expression has access to any variables and arguments that are in scope.
  */
-public class EvaluateRequestClass {
+@JsonInclude(JsonInclude.Include.NON_NULL)
+public class EvaluateRequestClass implements DAPRequest {
     private long seq;
-    private AttachRequestType type;
+    private String type = "request";
     private EvaluateRequestArguments arguments;
-    private EvaluateRequestCommand command;
+    private String command = "evaluate";
 
     /**
      * Sequence number of the message (also known as message ID). The `seq` for the first
@@ -33,9 +34,9 @@ public class EvaluateRequestClass {
      * Message type.
      */
     @JsonProperty("type")
-    public AttachRequestType getType() { return type; }
+    public String getType() { return type; }
     @JsonProperty("type")
-    public void setType(AttachRequestType value) { this.type = value; }
+    public void setType(String value) { this.type = value; }
 
     /**
      * Object containing arguments for the command.
@@ -49,7 +50,7 @@ public class EvaluateRequestClass {
      * The command to execute.
      */
     @JsonProperty("command")
-    public EvaluateRequestCommand getCommand() { return command; }
+    public String getCommand() { return command; }
     @JsonProperty("command")
-    public void setCommand(EvaluateRequestCommand value) { this.command = value; }
+    public void setCommand(String value) { this.command = value; }
 }

@@ -9,11 +9,12 @@ import com.fasterxml.jackson.annotation.*;
  *
  * The request retrieves a list of all threads.
  */
-public class ThreadsRequestClass {
+@JsonInclude(JsonInclude.Include.NON_NULL)
+public class ThreadsRequestClass implements DAPRequest {
     private long seq;
-    private AttachRequestType type;
+    private String type = "request";
     private Restart arguments;
-    private ThreadsRequestCommand command;
+    private String command = "threads";
 
     /**
      * Sequence number of the message (also known as message ID). The `seq` for the first
@@ -32,9 +33,9 @@ public class ThreadsRequestClass {
      * Message type.
      */
     @JsonProperty("type")
-    public AttachRequestType getType() { return type; }
+    public String getType() { return type; }
     @JsonProperty("type")
-    public void setType(AttachRequestType value) { this.type = value; }
+    public void setType(String value) { this.type = value; }
 
     /**
      * Object containing arguments for the command.
@@ -48,7 +49,7 @@ public class ThreadsRequestClass {
      * The command to execute.
      */
     @JsonProperty("command")
-    public ThreadsRequestCommand getCommand() { return command; }
+    public String getCommand() { return command; }
     @JsonProperty("command")
-    public void setCommand(ThreadsRequestCommand value) { this.command = value; }
+    public void setCommand(String value) { this.command = value; }
 }

@@ -9,9 +9,10 @@ import com.fasterxml.jackson.annotation.*;
  *
  * Response to `threads` request.
  */
-public class ThreadsResponseClass {
+@JsonInclude(JsonInclude.Include.NON_NULL)
+public class ThreadsResponseClass implements DAPResponse {
     private long seq;
-    private AttachResponseType type;
+    private String type;
     private ThreadsResponseBody body;
     private String command;
     private String message;
@@ -35,9 +36,9 @@ public class ThreadsResponseClass {
      * Message type.
      */
     @JsonProperty("type")
-    public AttachResponseType getType() { return type; }
+    public String getType() { return type; }
     @JsonProperty("type")
-    public void setType(AttachResponseType value) { this.type = value; }
+    public void setType(String value) { this.type = value; }
 
     /**
      * Contains request result if success is true and error details if success is false.

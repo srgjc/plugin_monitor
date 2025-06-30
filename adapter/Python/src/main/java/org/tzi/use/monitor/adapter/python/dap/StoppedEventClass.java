@@ -11,11 +11,12 @@ import com.fasterxml.jackson.annotation.*;
  * This can be caused by a breakpoint previously set, a stepping request has completed, by
  * executing a debugger statement etc.
  */
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class StoppedEventClass implements DAPEvent {
     private long seq;
-    private BreakpointEventType type;
+    private String type;
     private StoppedEventBody body;
-    private StoppedEventEvent event;
+    private String event;
 
     /**
      * Sequence number of the message (also known as message ID). The `seq` for the first
@@ -34,9 +35,9 @@ public class StoppedEventClass implements DAPEvent {
      * Message type.
      */
     @JsonProperty("type")
-    public BreakpointEventType getType() { return type; }
+    public String getType() { return type; }
     @JsonProperty("type")
-    public void setType(BreakpointEventType value) { this.type = value; }
+    public void setType(String value) { this.type = value; }
 
     /**
      * Event-specific information.
@@ -50,7 +51,7 @@ public class StoppedEventClass implements DAPEvent {
      * Type of event.
      */
     @JsonProperty("event")
-    public StoppedEventEvent getEvent() { return event; }
+    public String getEvent() { return event; }
     @JsonProperty("event")
-    public void setEvent(StoppedEventEvent value) { this.event = value; }
+    public void setEvent(String value) { this.event = value; }
 }

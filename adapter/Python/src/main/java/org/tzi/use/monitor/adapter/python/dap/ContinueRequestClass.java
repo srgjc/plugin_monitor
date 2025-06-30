@@ -12,11 +12,11 @@ import com.fasterxml.jackson.annotation.*;
  * `singleThread` argument to true resumes only the specified thread. If not all threads
  * were resumed, the `allThreadsContinued` attribute of the response should be set to false.
  */
-public class ContinueRequestClass {
+public class ContinueRequestClass implements DAPRequest {
     private long seq;
-    private AttachRequestType type;
+    private String type = "request";
     private ContinueRequestArguments arguments;
-    private ContinueRequestCommand command;
+    private String command = "continue";
 
     /**
      * Sequence number of the message (also known as message ID). The `seq` for the first
@@ -35,9 +35,9 @@ public class ContinueRequestClass {
      * Message type.
      */
     @JsonProperty("type")
-    public AttachRequestType getType() { return type; }
+    public String getType() { return type; }
     @JsonProperty("type")
-    public void setType(AttachRequestType value) { this.type = value; }
+    public void setType(String value) { this.type = value; }
 
     /**
      * Object containing arguments for the command.
@@ -51,7 +51,7 @@ public class ContinueRequestClass {
      * The command to execute.
      */
     @JsonProperty("command")
-    public ContinueRequestCommand getCommand() { return command; }
+    public String getCommand() { return command; }
     @JsonProperty("command")
-    public void setCommand(ContinueRequestCommand value) { this.command = value; }
+    public void setCommand(String value) { this.command = value; }
 }

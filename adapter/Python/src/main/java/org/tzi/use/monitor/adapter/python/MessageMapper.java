@@ -28,6 +28,11 @@ public class MessageMapper {
             case "initialize" -> mapper.readValue(json, InitializeResponseClass.class);
             case "attach" -> mapper.readValue(json, AttachResponseClass.class);
             case "configurationDone" -> mapper.readValue(json, ConfigurationDoneResponseClass.class);
+            case "threads" -> mapper.readValue(json, ThreadsResponseClass.class);
+            case "evaluate" -> mapper.readValue(json, EvaluateResponseClass.class);
+            case "pause" -> mapper.readValue(json, PauseResponseClass.class);
+            case "stackTrace" -> mapper.readValue(json, StackTraceResponseClass.class);
+            case "continue" -> mapper.readValue(json, ContinueResponseClass.class);
             default -> null;
         };
     }

@@ -9,9 +9,10 @@ import com.fasterxml.jackson.annotation.*;
  *
  * Response to `evaluate` request.
  */
-public class EvaluateResponseClass {
+@JsonInclude(JsonInclude.Include.NON_NULL)
+public class EvaluateResponseClass implements DAPResponse {
     private long seq;
-    private AttachResponseType type;
+    private String type;
     private EvaluateResponseBody body;
     private String command;
     private String message;
@@ -35,9 +36,9 @@ public class EvaluateResponseClass {
      * Message type.
      */
     @JsonProperty("type")
-    public AttachResponseType getType() { return type; }
+    public String getType() { return type; }
     @JsonProperty("type")
-    public void setType(AttachResponseType value) { this.type = value; }
+    public void setType(String value) { this.type = value; }
 
     /**
      * Contains request result if success is true and error details if success is false.
