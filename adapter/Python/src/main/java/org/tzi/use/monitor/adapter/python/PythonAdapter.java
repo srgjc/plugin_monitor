@@ -2,7 +2,6 @@ package org.tzi.use.monitor.adapter.python;
 
 import org.tzi.use.monitor.adapter.python.dap.BreakpointEventClass;
 import org.tzi.use.monitor.plugins.monitor.vm.mm.python.PyObject;
-import org.tzi.use.monitor.plugins.monitor.vm.mm.python.PyObjectRaw;
 import org.tzi.use.monitor.plugins.monitor.vm.mm.python.PyType;
 import org.tzi.use.plugins.monitor.MonitorException;
 import org.tzi.use.plugins.monitor.vm.adapter.AbstractVMAdapter;
@@ -26,20 +25,15 @@ public class PythonAdapter extends AbstractVMAdapter {
     private int port;
     private boolean isConnected;
     private DebugpyClient debugpyClient;
-    private Map<String, VMType> typeMapping;
+    public Map<String, PyType> typeMapping;
     private HashMap<String, HashMap<Integer, Breakpoint>> breakpoints;
 
     public Set<VMObject> readInstances(PyType type) {
-        var pyObjectRaw = new PyObjectRaw(); // TODO construct from client call instead
-        pyObjectRaw.setRawType(type.getRawType());
-        pyObjectRaw.getRawType().getFields().get(0).setValue("John Doe");
-        pyObjectRaw.getRawType().getFields().get(1).setValue("60000"); // TODO Fix is not getting set...
-        Set<VMObject> vmObjects = new HashSet<>();
-        for (PyObjectRaw ref : Set.of(pyObjectRaw)) {
-            PyObject pyObj = new PyObject(this, ref);
-            vmObjects.add(pyObj);
-        }
-        return vmObjects;
+        var className = type.getName();
+        System.out.println("Reading instances of class: " + className);
+        var pyObjectRaw = debugpyClient.getInstance(typeMapping.get(className));
+        PyObject pyObj = new PyObject(this, pyObjectRaw, typeMapping.get(className));
+        return Set.of(pyObj);
     }
 
     @Override

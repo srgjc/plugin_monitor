@@ -5,13 +5,17 @@ import org.tzi.use.plugins.monitor.vm.mm.VMField;
 import org.tzi.use.uml.mm.MAssociationEnd;
 import org.tzi.use.uml.mm.MAttribute;
 
+import java.util.UUID;
+
 public class PyField extends PyBase implements VMField {
 
+    private final Object id;
     private final PyFieldRaw pyFieldRaw;
 
     public PyField(PythonAdapter adapter, PyFieldRaw pyFieldRaw) {
         super(adapter);
         this.pyFieldRaw = pyFieldRaw;
+        this.id = UUID.randomUUID();
     }
 
     @Override
@@ -41,7 +45,7 @@ public class PyField extends PyBase implements VMField {
 
     @Override
     public Object getId() {
-        return null;
+        return id;
     }
 
     PyFieldRaw getPyFieldRaw() {

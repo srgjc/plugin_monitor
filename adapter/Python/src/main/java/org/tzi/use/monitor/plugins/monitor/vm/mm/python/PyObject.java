@@ -9,21 +9,26 @@ import org.tzi.use.uml.ocl.value.StringValue;
 import org.tzi.use.uml.ocl.value.Value;
 import org.tzi.use.uml.sys.MObject;
 
+import java.util.UUID;
+
 public class PyObject extends PyBase implements VMObject {
 
     private final PyObjectRaw rawObject;
     private final VMType type;
+    private final Object id;
+
     private MObject useObject;
 
-    public PyObject(PythonAdapter adapter, PyObjectRaw rawObject) {
+    public PyObject(PythonAdapter adapter, PyObjectRaw rawObject, PyType type) {
         super(adapter);
         this.rawObject = rawObject;
-        this.type = adapter.getVMType(rawObject.getRawType().getName());
+        this.type = type;
+        this.id = UUID.randomUUID();
     }
 
     @Override
     public Object getId() {
-        return null;
+        return id;
     }
 
     @Override
@@ -56,7 +61,8 @@ public class PyObject extends PyBase implements VMObject {
         System.out.println("getValue valstr:" + valStr);
         return switch (valTypeStr) {
             case "int" -> IntegerValue.valueOf(Integer.parseInt(valStr));
-            default -> new StringValue(valStr);
+            case "str" -> new StringValue(valStr);
+            default -> null;
         };
     }
 

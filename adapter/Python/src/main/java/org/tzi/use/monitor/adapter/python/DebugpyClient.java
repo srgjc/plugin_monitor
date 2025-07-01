@@ -4,8 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.tzi.use.monitor.adapter.python.dap.*;
 import org.tzi.use.monitor.adapter.python.dap.Thread;
-import org.tzi.use.monitor.plugins.monitor.vm.mm.python.PyFieldRaw;
-import org.tzi.use.monitor.plugins.monitor.vm.mm.python.PyTypeRaw;
+import org.tzi.use.monitor.plugins.monitor.vm.mm.python.*;
 
 import java.io.*;
 import java.net.Socket;
@@ -106,6 +105,7 @@ public class DebugpyClient {
         evalArgs.setFrameID((long) getCurrentFrameId(getThreadId("MainThread")));
         evalArgs.setExpression(PyEvalExBuilder.getClassFieldTypesExp(qualifiedClassName));
         var evalReq = new EvaluateRequestClass();
+        evalReq.setSeq(REQUEST_COUNTER++);
         evalReq.setArguments(evalArgs);
         var evalResp = (EvaluateResponseClass) sendRequest(evalReq);
 
@@ -204,6 +204,43 @@ public class DebugpyClient {
         stackTraceReq.setArguments(stackTraceArgs);
         var stackTraceResp = (StackTraceResponseClass) sendRequest(stackTraceReq);
         return (int) stackTraceResp.getBody().getStackFrames()[0].getID();
+    }
+
+    protected PyObjectRaw getInstance(PyType pyType) {
+        pause();
+
+        var evalArgs = new EvaluateRequestArguments();
+        evalArgs.setContext("watch");
+        evalArgs.setFrameID((long) getCurrentFrameId(getThreadId("MainThread")));
+        evalArgs.setExpression(PyEvalExBuilder.getInstanceExp(pyType.getName()));
+        var evalReq = new EvaluateRequestClass();
+        evalReq.setSeq(REQUEST_COUNTER++);
+        evalReq.setArguments(evalArgs);
+        var evalResp = (EvaluateResponseClass) sendRequest(evalReq);
+
+        var res = evalResp.getBody().getResult();
+        String json = res.replace('\'', '"');
+        ObjectMapper mapper = new ObjectMapper();
+        Map<String, Object> rawMap = null;
+        try {
+            rawMap = mapper.readValue(json, Map.class);
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException(e);
+        }
+        Map<String, String> result = new HashMap<>();
+        for (Map.Entry<String, Object> entry : rawMap.entrySet()) {
+            result.put(entry.getKey(), entry.getValue().toString());
+        }
+
+        var pyObjectRaw = new PyObjectRaw();
+        pyObjectRaw.setRawType(pyType.getRawType());
+        for (PyFieldRaw rawField : pyObjectRaw.getRawType().getFields()) {
+            System.out.println("Setting value '" + result.get(rawField.getName()) + "' to field '" + rawField.getName());
+            rawField.setValue(result.get(rawField.getName()));
+        }
+
+        resume();
+        return pyObjectRaw;
     }
 
     private void getStackStrace() {
