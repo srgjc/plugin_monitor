@@ -16,11 +16,12 @@ import com.fasterxml.jackson.annotation.*;
  * `terminateDebuggee` argument (which is only supported by a debug adapter if the
  * corresponding capability `supportTerminateDebuggee` is true).
  */
-public class DisconnectRequestClass {
+@JsonInclude(JsonInclude.Include.NON_NULL)
+public class DisconnectRequestClass implements DAPRequest {
     private long seq;
-    private AttachRequestType type;
+    private String type = "request";
     private DisconnectRequestArguments arguments;
-    private DisconnectRequestCommand command;
+    private String command = "disconnect";
 
     /**
      * Sequence number of the message (also known as message ID). The `seq` for the first
@@ -39,9 +40,9 @@ public class DisconnectRequestClass {
      * Message type.
      */
     @JsonProperty("type")
-    public AttachRequestType getType() { return type; }
+    public String getType() { return type; }
     @JsonProperty("type")
-    public void setType(AttachRequestType value) { this.type = value; }
+    public void setType(String value) { this.type = value; }
 
     /**
      * Object containing arguments for the command.
@@ -55,7 +56,7 @@ public class DisconnectRequestClass {
      * The command to execute.
      */
     @JsonProperty("command")
-    public DisconnectRequestCommand getCommand() { return command; }
+    public String getCommand() { return command; }
     @JsonProperty("command")
-    public void setCommand(DisconnectRequestCommand value) { this.command = value; }
+    public void setCommand(String value) { this.command = value; }
 }

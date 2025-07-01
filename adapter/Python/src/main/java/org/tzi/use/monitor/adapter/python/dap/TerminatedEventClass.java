@@ -10,11 +10,12 @@ import com.fasterxml.jackson.annotation.*;
  * The event indicates that debugging of the debuggee has terminated. This does **not** mean
  * that the debuggee itself has exited.
  */
-public class TerminatedEventClass {
+@JsonInclude(JsonInclude.Include.NON_NULL)
+public class TerminatedEventClass implements DAPEvent {
     private long seq;
-    private BreakpointEventType type;
+    private String type;
     private TerminatedEventBody body;
-    private TerminatedEventEvent event;
+    private String event;
 
     /**
      * Sequence number of the message (also known as message ID). The `seq` for the first
@@ -33,9 +34,9 @@ public class TerminatedEventClass {
      * Message type.
      */
     @JsonProperty("type")
-    public BreakpointEventType getType() { return type; }
+    public String getType() { return type; }
     @JsonProperty("type")
-    public void setType(BreakpointEventType value) { this.type = value; }
+    public void setType(String value) { this.type = value; }
 
     /**
      * Event-specific information.
@@ -49,7 +50,7 @@ public class TerminatedEventClass {
      * Type of event.
      */
     @JsonProperty("event")
-    public TerminatedEventEvent getEvent() { return event; }
+    public String getEvent() { return event; }
     @JsonProperty("event")
-    public void setEvent(TerminatedEventEvent value) { this.event = value; }
+    public void setEvent(String value) { this.event = value; }
 }

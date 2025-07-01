@@ -9,10 +9,10 @@ import org.tzi.use.monitor.plugins.monitor.vm.mm.python.PyTypeRaw;
 
 import java.io.*;
 import java.net.Socket;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * @author Sergio Jimenez
@@ -99,7 +99,6 @@ public class DebugpyClient {
     }
 
     PyTypeRaw getVMType(String qualifiedClassName) {
-        // Pause
         pause();
 
         var evalArgs = new EvaluateRequestArguments();
@@ -110,15 +109,36 @@ public class DebugpyClient {
         evalReq.setArguments(evalArgs);
         var evalResp = (EvaluateResponseClass) sendRequest(evalReq);
 
-        // New internal PyType
-        var rawType = new PyTypeRaw(qualifiedClassName);
-        var rawField1 = new PyFieldRaw("name", "string", null);
-        var rawField2 = new PyFieldRaw("salary", "int", null);
-        rawType.setFields(List.of(rawField1, rawField2));
+        var classMappings = parsePythonTypeString(evalResp.getBody().getResult());
+        PyTypeRaw rawType = new PyTypeRaw(qualifiedClassName);
+        List<PyFieldRaw> fields = new ArrayList<>();
+        for (Map.Entry<String, String> entry : classMappings.entrySet()) {
+            fields.add(new PyFieldRaw(entry.getKey(), entry.getValue(), null));
+        }
+        rawType.setFields(fields);
 
-        // Resume
         resume();
         return rawType;
+    }
+
+    public Map<String, String> parsePythonTypeString(String input) {
+        Map<String, String> result = new HashMap<>();
+
+        String cleaned = input
+                .replace("'", "\"")
+                .replaceAll("<class\\s+\"(.*?)\">", "\"$1\"")
+                .replaceAll("<class\\s+'(.*?)'>", "\"$1\"");
+
+        Pattern pattern = Pattern.compile("\"(\\w+)\":\\s*\"(\\w+)\"");
+        Matcher matcher = pattern.matcher(cleaned);
+
+        while (matcher.find()) {
+            String variable = matcher.group(1);
+            String type = matcher.group(2);
+            result.put(variable, type);
+        }
+
+        return result;
     }
 
     protected boolean pause() {
@@ -148,6 +168,18 @@ public class DebugpyClient {
         continueReq.setArguments(continueArgs);
         var continueResp = (ContinueResponseClass) sendRequest(continueReq);
         return continueResp.getSuccess();
+    }
+
+    protected boolean stop() {
+        var stopArgs = new DisconnectRequestArguments();
+        stopArgs.setRestart(false);
+        stopArgs.setSuspendDebuggee(true);
+        stopArgs.setTerminateDebuggee(false);
+        var stopReq = new DisconnectRequestClass();
+        stopReq.setSeq(REQUEST_COUNTER++);
+        stopReq.setArguments(stopArgs);
+        var stopResp = (DisconnectResponseClass) sendRequest(stopReq);
+        return stopResp.getSuccess();
     }
 
     private int getThreadId(String threadName) {
@@ -223,7 +255,7 @@ public class DebugpyClient {
                 while (true) {
                     String line;
                     int contentLength = 0;
-                    while (!(line = in.readLine()).isEmpty()) {
+                    while ((line = in.readLine()) != null && !line.isEmpty()) {
                         contentLength = Integer.parseInt(line.substring("Content-Length:".length()).trim());
                     }
                     char[] body = new char[contentLength];
@@ -234,6 +266,9 @@ public class DebugpyClient {
                         read += r;
                     }
                     String json = new String(body);
+                    if (json.isEmpty()) {
+                        continue;
+                    }
                     System.out.println("Received json response: " + json);
                     DAPMessage msg = MessageMapper.parseMessage(json);
                     System.out.println("Parsed json response to object...");

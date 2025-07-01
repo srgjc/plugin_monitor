@@ -33,6 +33,7 @@ public class MessageMapper {
             case "pause" -> mapper.readValue(json, PauseResponseClass.class);
             case "stackTrace" -> mapper.readValue(json, StackTraceResponseClass.class);
             case "continue" -> mapper.readValue(json, ContinueResponseClass.class);
+            case "disconnect" -> mapper.readValue(json, DisconnectResponseClass.class);
             default -> null;
         };
     }
@@ -43,6 +44,7 @@ public class MessageMapper {
             case "initialized" -> mapper.readValue(json, InitializedEventClass.class);
             case "breakpoint" -> mapper.readValue(json, BreakpointEventClass.class);
             case "stopped" -> mapper.readValue(json, StoppedEventClass.class);
+            case "terminated" -> mapper.readValue(json, TerminatedEventClass.class);
             default -> null;
         };
     }

@@ -94,18 +94,19 @@ public class PythonAdapter extends AbstractVMAdapter {
     public void resume() {
         System.out.println("Resuming debugpy server...");
         debugpyClient.resume();
+        System.out.println("Resumed debugpy server...");
     }
 
     @Override
     public void suspend() {
-        System.out.println("Suspending debugpy server...");
+        System.out.println("Suspended debugpy server...");
         debugpyClient.pause();
     }
 
     @Override
     public void stop() {
-        System.out.println("Stopping debugpy server...");
-
+        System.out.println("Stopped debugpy server...");
+        debugpyClient.stop();
         isConnected = false;
     }
 
@@ -120,6 +121,7 @@ public class PythonAdapter extends AbstractVMAdapter {
             }
             typeMapping.put(name, res);
         }
+        System.out.println("Got VMType '" + name + "'...");
         return typeMapping.get(name);
     }
 
