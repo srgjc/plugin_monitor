@@ -29,6 +29,7 @@ public class DebugpyClient {
     private CompletableFuture<DAPResponse> futureResp;
     private CompletableFuture<DAPEvent> initEvent;
     private CompletableFuture<DAPEvent> stoppedEvent;
+    private boolean running = false;
 
     DebugpyClient(String host, int port, BreakpointHandler breakpointHandler) throws IOException {
         this.socket = new Socket(host, port);
@@ -94,6 +95,7 @@ public class DebugpyClient {
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }
+        running = true;
         return initResp.getSuccess();
     }
 
@@ -117,7 +119,6 @@ public class DebugpyClient {
         }
         rawType.setFields(fields);
 
-        resume();
         return rawType;
     }
 
@@ -142,6 +143,10 @@ public class DebugpyClient {
     }
 
     protected boolean pause() {
+        if (!running) {
+            return true;
+        }
+
         stoppedEvent = new CompletableFuture<>();
 
         var pauseArgs = new PauseRequestArguments();
@@ -157,16 +162,21 @@ public class DebugpyClient {
         } catch (InterruptedException | ExecutionException e) {
             throw new RuntimeException(e);
         }
+        running = false;
         return pauseResp.getSuccess();
     }
 
     protected boolean resume() {
+        if (running) {
+            return true;
+        }
         var continueArgs = new ContinueRequestArguments();
         continueArgs.setThreadID(getThreadId("MainThread"));
         var continueReq = new ContinueRequestClass();
         continueReq.setSeq(REQUEST_COUNTER++);
         continueReq.setArguments(continueArgs);
         var continueResp = (ContinueResponseClass) sendRequest(continueReq);
+        running = true;
         return continueResp.getSuccess();
     }
 
@@ -239,7 +249,6 @@ public class DebugpyClient {
             rawField.setValue(result.get(rawField.getName()));
         }
 
-        resume();
         return pyObjectRaw;
     }
 
