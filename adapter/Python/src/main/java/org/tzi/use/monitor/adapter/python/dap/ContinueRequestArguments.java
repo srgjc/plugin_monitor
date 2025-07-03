@@ -5,6 +5,7 @@ import com.fasterxml.jackson.annotation.*;
 /**
  * Arguments for `continue` request.
  */
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class ContinueRequestArguments {
     private Boolean singleThread;
     private long threadID;
