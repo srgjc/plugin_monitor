@@ -100,8 +100,20 @@ public class DebugpyClient {
     }
 
     PyTypeRaw getVMType(String qualifiedClassName) {
+        // TODO: Handle remaining build-in types
+        var t = switch (qualifiedClassName) {
+            case "str" -> new PyTypeRaw("str");
+            case "int" -> new PyTypeRaw("int");
+            default -> null;
+        };
+
+        if (t != null) {
+            return t;
+        }
+
         pause();
 
+        // Set Fields
         var evalArgs = new EvaluateRequestArguments();
         evalArgs.setContext("watch");
         evalArgs.setFrameID((long) getCurrentFrameId(getThreadId("MainThread")));
@@ -119,7 +131,58 @@ public class DebugpyClient {
         }
         rawType.setFields(fields);
 
+        // Set Methods
+        evalArgs.setExpression(PyEvalExBuilder.getMethodsExpVar(qualifiedClassName));
+        evalReq.setSeq(REQUEST_COUNTER++);
+        evalResp = (EvaluateResponseClass) sendRequest(evalReq);
+
+        Map<String, Map<String, String>> mSigs = parseMethodSignatures(evalResp.getBody().getResult());
+        List<PyMethodRaw> methods = new LinkedList<>();
+        for (String mName : mSigs.keySet()) {
+            PyMethodRaw mRaw = new PyMethodRaw();
+            mRaw.setName(mName);
+            List<String> argTypeNames = new LinkedList<>();
+            for (Map.Entry<String, String> mArg : mSigs.get(mName).entrySet()) {
+               argTypeNames.add(mArg.getValue());
+            }
+            mRaw.setArgumentTypeNames(argTypeNames);
+            methods.add(mRaw);
+        }
+        rawType.setMethods(methods);
         return rawType;
+    }
+
+    public static Map<String, Map<String, String>> parseMethodSignatures(String evalResp) {
+        Map<String, Map<String, String>> result = new HashMap<>();
+        Pattern signaturePattern = Pattern.compile("^(\\w+)\\((.*?)\\)\\s*->\\s*.*$");
+        evalResp = evalResp.strip().replaceAll("^'+|'+$", ""); // Remove outer quotes
+        String[] lines = evalResp.split("\\\\n"); // split on literal `\n`
+
+        for (String line : lines) {
+            Matcher matcher = signaturePattern.matcher(line.strip());
+            if (matcher.matches()) {
+                String methodName = matcher.group(1);
+                String params = matcher.group(2);
+                Map<String, String> paramMap = new LinkedHashMap<>();
+                if (!params.isEmpty()) {
+                    for (String param : params.split(",")) {
+                        param = param.strip();
+                        if (param.equals("self")) continue;
+                        String[] parts = param.split(":");
+                        if (parts.length == 2) {
+                            String paramName = parts[0].strip();
+                            String paramType = parts[1].strip();
+                            paramMap.put(paramName, paramType);
+                        } else {
+                            // TODO: Unknown handling
+                            System.out.printf("Unknown type for argument '%s'\n", parts[0].strip());
+                        }
+                    }
+                }
+                result.put(methodName, paramMap);
+            }
+        }
+        return result;
     }
 
     public Map<String, String> parsePythonTypeString(String input) {

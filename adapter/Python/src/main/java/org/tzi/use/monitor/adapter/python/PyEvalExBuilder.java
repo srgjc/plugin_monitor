@@ -24,4 +24,19 @@ public class PyEvalExBuilder {
                 simpleClassName
         );
     }
+
+    public static String getMethodsExpVar(String qualifiedClassName) {
+        int lastDot = qualifiedClassName.lastIndexOf('.');
+        String moduleName = qualifiedClassName.substring(0, lastDot);
+        String simpleClassName = qualifiedClassName.substring(lastDot + 1);
+        return String.format(
+                "\"\\n\".join([\n" +
+                        "  f\"{name}({', '.join([str(p) for p in __import__('inspect').signature(m).parameters.values()])}) -> {__import__('inspect').signature(m).return_annotation.__name__ if isinstance(__import__('inspect').signature(m).return_annotation, type) else str(__import__('inspect').signature(m).return_annotation)}\"\n" +
+                        "  for name, m in __import__('inspect').getmembers(__import__('sys').modules['%s'].%s, __import__('inspect').isfunction)\n" +
+                        "])",
+                moduleName,
+                simpleClassName
+        );
+    }
+
 }

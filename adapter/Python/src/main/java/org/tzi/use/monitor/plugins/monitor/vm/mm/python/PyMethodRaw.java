@@ -1,11 +1,11 @@
 package org.tzi.use.monitor.plugins.monitor.vm.mm.python;
 
+import java.util.List;
+
 public class PyMethodRaw {
 
     private String name;
-    private String returnType;
-    private String lineNoStart;
-    private String lineNoEnd;
+    private List<String> argumentTypeNames;
 
     public String getName() {
         return name;
@@ -15,28 +15,19 @@ public class PyMethodRaw {
         this.name = name;
     }
 
-    public String getReturnType() {
-        return returnType;
+    public List<String> getArgumentTypeNames() {
+        return argumentTypeNames;
     }
 
-    public void setReturnType(String returnType) {
-        this.returnType = returnType;
+    public void setArgumentTypeNames(List<String> argumentTypeNames) {
+        this.argumentTypeNames = argumentTypeNames;
     }
 
-    public String getLineNoStart() {
-        return lineNoStart;
+    @Override
+    public String toString() {
+        return "PyMethodRaw{" +
+                "name='" + name + '\'' +
+                ", argumentTypeNames=" + argumentTypeNames +
+                '}';
     }
-
-    public void setLineNoStart(String lineNoStart) {
-        this.lineNoStart = lineNoStart;
-    }
-
-    public String getLineNoEnd() {
-        return lineNoEnd;
-    }
-
-    public void setLineNoEnd(String lineNoEnd) {
-        this.lineNoEnd = lineNoEnd;
-    }
-
 }
