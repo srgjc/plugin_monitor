@@ -9,11 +9,12 @@ import com.fasterxml.jackson.annotation.*;
  *
  * The event indicates that some information about a breakpoint has changed.
  */
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class BreakpointEventClass implements DAPEvent {
     private long seq;
-    private BreakpointEventType type;
+    private String type;
     private BreakpointEventBody body;
-    private BreakpointEventEvent event;
+    private String event;
 
     /**
      * Sequence number of the message (also known as message ID). The `seq` for the first
@@ -32,9 +33,9 @@ public class BreakpointEventClass implements DAPEvent {
      * Message type.
      */
     @JsonProperty("type")
-    public BreakpointEventType getType() { return type; }
+    public String getType() { return type; }
     @JsonProperty("type")
-    public void setType(BreakpointEventType value) { this.type = value; }
+    public void setType(String value) { this.type = value; }
 
     /**
      * Event-specific information.
@@ -48,7 +49,7 @@ public class BreakpointEventClass implements DAPEvent {
      * Type of event.
      */
     @JsonProperty("event")
-    public BreakpointEventEvent getEvent() { return event; }
+    public String getEvent() { return event; }
     @JsonProperty("event")
-    public void setEvent(BreakpointEventEvent value) { this.event = value; }
+    public void setEvent(String value) { this.event = value; }
 }

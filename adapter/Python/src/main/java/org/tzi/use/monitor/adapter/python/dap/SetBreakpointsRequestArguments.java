@@ -5,6 +5,7 @@ import com.fasterxml.jackson.annotation.*;
 /**
  * Arguments for `setBreakpoints` request.
  */
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class SetBreakpointsRequestArguments {
     private SourceBreakpoint[] breakpoints;
     private long[] lines;

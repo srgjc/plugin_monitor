@@ -51,6 +51,10 @@ public class PyMethod extends PyBase implements VMMethod {
         this.useOperation = useOperation;
     }
 
+    public PyMethodRaw getMethod() {
+        return method;
+    }
+
     @Override
     public String toString() {
         return "PyMethod{" +

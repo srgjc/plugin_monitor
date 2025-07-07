@@ -12,11 +12,12 @@ import com.fasterxml.jackson.annotation.*;
  * To clear all breakpoint for a source, specify an empty array.
  * When a breakpoint is hit, a `stopped` event (with reason `breakpoint`) is generated.
  */
-public class SetBreakpointsRequestClass {
+@JsonInclude(JsonInclude.Include.NON_NULL)
+public class SetBreakpointsRequestClass implements DAPRequest {
     private long seq;
-    private AttachRequestType type;
+    private String type = "request";
     private SetBreakpointsRequestArguments arguments;
-    private SetBreakpointsRequestCommand command;
+    private String command = "setBreakpoints";
 
     /**
      * Sequence number of the message (also known as message ID). The `seq` for the first
@@ -35,9 +36,9 @@ public class SetBreakpointsRequestClass {
      * Message type.
      */
     @JsonProperty("type")
-    public AttachRequestType getType() { return type; }
+    public String getType() { return type; }
     @JsonProperty("type")
-    public void setType(AttachRequestType value) { this.type = value; }
+    public void setType(String value) { this.type = value; }
 
     /**
      * Object containing arguments for the command.
@@ -51,7 +52,7 @@ public class SetBreakpointsRequestClass {
      * The command to execute.
      */
     @JsonProperty("command")
-    public SetBreakpointsRequestCommand getCommand() { return command; }
+    public String getCommand() { return command; }
     @JsonProperty("command")
-    public void setCommand(SetBreakpointsRequestCommand value) { this.command = value; }
+    public void setCommand(String value) { this.command = value; }
 }

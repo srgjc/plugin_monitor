@@ -6,6 +6,9 @@ public class PyMethodRaw {
 
     private String name;
     private List<String> argumentTypeNames;
+    private int startLineNo;
+    private int endLineNo;
+    private String file;
 
     public String getName() {
         return name;
@@ -23,11 +26,39 @@ public class PyMethodRaw {
         this.argumentTypeNames = argumentTypeNames;
     }
 
+    public int getStartLineNo() {
+        return startLineNo;
+    }
+
+    public void setStartLineNo(int startLineNo) {
+        this.startLineNo = startLineNo;
+    }
+
+    public int getEndLineNo() {
+        return endLineNo;
+    }
+
+    public void setEndLineNo(int endLineNo) {
+        this.endLineNo = endLineNo;
+    }
+
+    public String getFile() {
+        return file;
+    }
+
+    public void setFile(String file) {
+        this.file = file;
+    }
+
     @Override
     public String toString() {
         return "PyMethodRaw{" +
                 "name='" + name + '\'' +
                 ", argumentTypeNames=" + argumentTypeNames +
+                ", startLineNo=" + startLineNo +
+                ", endLineNo=" + endLineNo +
+                ", file='" + file + '\'' +
                 '}';
     }
+
 }

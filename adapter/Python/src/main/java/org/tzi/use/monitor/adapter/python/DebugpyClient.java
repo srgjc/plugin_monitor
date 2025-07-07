@@ -1,6 +1,7 @@
 package org.tzi.use.monitor.adapter.python;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.tzi.use.monitor.adapter.python.dap.*;
 import org.tzi.use.monitor.adapter.python.dap.Thread;
@@ -140,12 +141,33 @@ public class DebugpyClient {
         List<PyMethodRaw> methods = new LinkedList<>();
         for (String mName : mSigs.keySet()) {
             PyMethodRaw mRaw = new PyMethodRaw();
+            // Set name
             mRaw.setName(mName);
+            // Set arg type names
             List<String> argTypeNames = new LinkedList<>();
             for (Map.Entry<String, String> mArg : mSigs.get(mName).entrySet()) {
                argTypeNames.add(mArg.getValue());
             }
             mRaw.setArgumentTypeNames(argTypeNames);
+            // Set line nos and filename
+            evalArgs.setExpression(PyEvalExBuilder.getMethodBreakpointInfo(qualifiedClassName, mName));
+            evalReq.setSeq(REQUEST_COUNTER++);
+            evalResp = (EvaluateResponseClass) sendRequest(evalReq);
+
+            String json = evalResp.getBody().getResult().replace("'", "\"");
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode root;
+            try {
+                root = mapper.readTree(json);
+            } catch (JsonProcessingException e) {
+                return null;
+            }
+            mRaw.setFile(root.get("file").asText());
+            mRaw.setStartLineNo(root.get("start").asInt());
+            mRaw.setEndLineNo(root.get("end").asInt() - 1);
+
+            // TODO: Set return type
+
             methods.add(mRaw);
         }
         rawType.setMethods(methods);
@@ -203,6 +225,23 @@ public class DebugpyClient {
         }
 
         return result;
+    }
+
+    protected boolean setBreakpoint(PyMethod pyMethod) {
+        var source = new Source();
+        source.setPath(pyMethod.getMethod().getFile());
+        var bpArgs = new SetBreakpointsRequestArguments();
+        bpArgs.setSource(source);
+        var bpSrcStart = new SourceBreakpoint();
+        bpSrcStart.setLine(pyMethod.getMethod().getStartLineNo());
+        var bpSrcEnd = new SourceBreakpoint();
+        bpSrcEnd.setLine(pyMethod.getMethod().getEndLineNo());
+        bpArgs.setBreakpoints(new SourceBreakpoint[]{bpSrcStart, bpSrcEnd});
+        var bpReq = new SetBreakpointsRequestClass();
+        bpReq.setSeq(REQUEST_COUNTER++);
+        bpReq.setArguments(bpArgs);
+        var bpResp = (SetBreakpointsResponseClass) sendRequest(bpReq);
+        return bpResp.getSuccess();
     }
 
     protected boolean pause() {
@@ -292,6 +331,9 @@ public class DebugpyClient {
         var evalResp = (EvaluateResponseClass) sendRequest(evalReq);
 
         var res = evalResp.getBody().getResult();
+        if (res.equals("None")) {
+            return null;
+        }
         String json = res.replace('\'', '"');
         ObjectMapper mapper = new ObjectMapper();
         Map<String, Object> rawMap = null;

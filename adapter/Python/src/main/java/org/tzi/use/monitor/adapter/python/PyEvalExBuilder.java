@@ -20,7 +20,8 @@ public class PyEvalExBuilder {
         int lastDot = qualifiedClassName.lastIndexOf('.');
         String simpleClassName = qualifiedClassName.substring(lastDot + 1);
         return String.format(
-          "vars(next(obj for obj in __import__('gc').get_objects() if isinstance(obj, %s)))",
+                "vars(next((obj for obj in __import__('gc').get_objects() if isinstance(obj, %s)), None)) if next((obj for obj in __import__('gc').get_objects() if isinstance(obj, %s)), None) else None",
+                simpleClassName,
                 simpleClassName
         );
     }
@@ -37,6 +38,26 @@ public class PyEvalExBuilder {
                 moduleName,
                 simpleClassName
         );
+    }
+
+    public static String getMethodBreakpointInfo(String qualifiedClassName, String methodName) {
+        int lastDot = qualifiedClassName.lastIndexOf('.');
+        String moduleName = qualifiedClassName.substring(0, lastDot);
+        String simpleClassName = qualifiedClassName.substring(lastDot + 1);
+        return String.format("{\"file\": __import__('inspect').getsourcefile(getattr(getattr(__import__('sys').modules['%s'], '%s'), '%s')), \"start\": getattr(getattr(__import__('sys').modules['%s'], '%s'), '%s').__code__.co_firstlineno, \"end\": getattr(getattr(__import__('sys').modules['%s'], '%s'), '%s').__code__.co_firstlineno + len(__import__('inspect').getsourcelines(getattr(getattr(__import__('sys').modules['%s'], '%s'), '%s'))[0]) - 1}\n",
+                moduleName,
+                simpleClassName,
+                methodName,
+                moduleName,
+                simpleClassName,
+                methodName,
+                moduleName,
+                simpleClassName,
+                methodName,
+                moduleName,
+                simpleClassName,
+                methodName
+                );
     }
 
 }

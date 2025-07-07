@@ -13,9 +13,10 @@ import com.fasterxml.jackson.annotation.*;
  * The breakpoints returned are in the same order as the elements of the `breakpoints`
  * (or the deprecated `lines`) array in the arguments.
  */
-public class SetBreakpointsResponseClass {
+@JsonInclude(JsonInclude.Include.NON_NULL)
+public class SetBreakpointsResponseClass implements DAPResponse {
     private long seq;
-    private AttachResponseType type;
+    private String type;
     private SetBreakpointsResponseBody body;
     private String command;
     private String message;
@@ -39,9 +40,9 @@ public class SetBreakpointsResponseClass {
      * Message type.
      */
     @JsonProperty("type")
-    public AttachResponseType getType() { return type; }
+    public String getType() { return type; }
     @JsonProperty("type")
-    public void setType(AttachResponseType value) { this.type = value; }
+    public void setType(String value) { this.type = value; }
 
     /**
      * Contains request result if success is true and error details if success is false.

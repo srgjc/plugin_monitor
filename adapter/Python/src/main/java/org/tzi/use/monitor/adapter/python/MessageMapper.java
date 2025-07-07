@@ -34,6 +34,7 @@ public class MessageMapper {
             case "stackTrace" -> mapper.readValue(json, StackTraceResponseClass.class);
             case "continue" -> mapper.readValue(json, ContinueResponseClass.class);
             case "disconnect" -> mapper.readValue(json, DisconnectResponseClass.class);
+            case "setBreakpoints" -> mapper.readValue(json, SetBreakpointsResponseClass.class);
             default -> null;
         };
     }

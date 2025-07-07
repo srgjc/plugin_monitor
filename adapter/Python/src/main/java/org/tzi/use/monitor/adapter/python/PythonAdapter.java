@@ -1,6 +1,7 @@
 package org.tzi.use.monitor.adapter.python;
 
 import org.tzi.use.monitor.adapter.python.dap.BreakpointEventClass;
+import org.tzi.use.monitor.plugins.monitor.vm.mm.python.PyMethod;
 import org.tzi.use.monitor.plugins.monitor.vm.mm.python.PyObject;
 import org.tzi.use.monitor.plugins.monitor.vm.mm.python.PyType;
 import org.tzi.use.plugins.monitor.MonitorException;
@@ -11,7 +12,6 @@ import org.tzi.use.plugins.monitor.vm.mm.*;
 import org.tzi.use.uml.ocl.value.Value;
 
 import java.util.*;
-import java.util.logging.Level;
 
 /**
  * @author Sergio Jimenez
@@ -32,6 +32,9 @@ public class PythonAdapter extends AbstractVMAdapter {
         var className = type.getName();
         System.out.println("Reading instances of class: " + className);
         var pyObjectRaw = debugpyClient.getInstance(typeMapping.get(className));
+        if (pyObjectRaw == null) {
+            return Set.of();
+        }
         PyObject pyObj = new PyObject(this, pyObjectRaw, typeMapping.get(className));
         return Set.of(pyObj);
     }
@@ -136,7 +139,9 @@ public class PythonAdapter extends AbstractVMAdapter {
 
     @Override
     public void registerOperationCallInterest(VMMethod m) {
-
+        if (!m.getName().equals("__init__")) {
+            debugpyClient.setBreakpoint((PyMethod) m);
+        }
     }
 
     @Override
@@ -156,11 +161,8 @@ public class PythonAdapter extends AbstractVMAdapter {
 
     @Override
     public void registerConstructorCallInterest(VMType vmType) {
-        PyType type = (PyType) vmType;
-        for (VMMethod m : type.getMethodsByName("__init__")) {
-            controller.newLogMessage(this, Level.FINE, "Registering constructor " + m.toString());
-            // set breakpoints via debugpy for constructor
-        }
+        VMMethod constructor = vmType.getMethodsByName("__init__").getFirst();
+        debugpyClient.setBreakpoint((PyMethod) constructor);
     }
 
     @Override
