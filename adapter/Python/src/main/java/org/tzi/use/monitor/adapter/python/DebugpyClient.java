@@ -165,7 +165,11 @@ public class DebugpyClient {
             mRaw.setFile(root.get("file").asText());
             mRaw.setStartLineNo(root.get("start").asInt());
             mRaw.setEndLineNo(root.get("end").asInt() - 1);
-
+            List<Integer> returnLines = new ArrayList<>();
+            for (JsonNode r : root.get("returns")) {
+                returnLines.add(r.asInt());
+            }
+            mRaw.setReturnLines(returnLines);
             // TODO: Set return type
 
             methods.add(mRaw);

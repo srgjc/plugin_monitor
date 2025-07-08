@@ -45,20 +45,31 @@ public class PyEvalExBuilder {
         int lastDot = qualifiedClassName.lastIndexOf('.');
         String moduleName = qualifiedClassName.substring(0, lastDot);
         String simpleClassName = qualifiedClassName.substring(lastDot + 1);
-        return String.format("{\"file\": __import__('inspect').getsourcefile(getattr(getattr(__import__('sys').modules['%s'], '%s'), '%s')), \"start\": getattr(getattr(__import__('sys').modules['%s'], '%s'), '%s').__code__.co_firstlineno, \"end\": getattr(getattr(__import__('sys').modules['%s'], '%s'), '%s').__code__.co_firstlineno + len(__import__('inspect').getsourcelines(getattr(getattr(__import__('sys').modules['%s'], '%s'), '%s'))[0]) - 1}\n",
-                moduleName,
-                simpleClassName,
-                methodName,
-                moduleName,
-                simpleClassName,
-                methodName,
-                moduleName,
-                simpleClassName,
-                methodName,
+        return String.format(
+                """
+                        (
+                          lambda fn: {
+                            "file": __import__('inspect').getsourcefile(fn),
+                            "start": fn.__code__.co_firstlineno,
+                            "end": fn.__code__.co_firstlineno + len(__import__('inspect').getsourcelines(fn)[0]) - 1,
+                            "returns": [
+                              node.lineno + fn.__code__.co_firstlineno - 1
+                              for node in __import__('ast').walk(
+                                __import__('ast').parse(
+                                  __import__('textwrap').dedent(
+                                    "".join(__import__('inspect').getsourcelines(fn)[0])
+                                  )
+                                )
+                              )
+                              if isinstance(node, __import__('ast').Return)
+                            ]
+                          }
+                        )(getattr(getattr(__import__('sys').modules['%s'], '%s'), '%s'))
+                        """,
                 moduleName,
                 simpleClassName,
                 methodName
-                );
+        );
     }
 
 }
