@@ -105,6 +105,7 @@ public class DebugpyClient {
         var t = switch (qualifiedClassName) {
             case "str" -> new PyTypeRaw("str");
             case "int" -> new PyTypeRaw("int");
+            case "bool" -> new PyTypeRaw("bool");
             default -> null;
         };
 
@@ -334,15 +335,15 @@ public class DebugpyClient {
         evalReq.setArguments(evalArgs);
         var evalResp = (EvaluateResponseClass) sendRequest(evalReq);
 
+        // TODO: Use variables reference instead...
         var res = evalResp.getBody().getResult();
         if (res.equals("None")) {
             return null;
         }
         String json = res.replace('\'', '"');
-        ObjectMapper mapper = new ObjectMapper();
-        Map<String, Object> rawMap = null;
+        Map<String, Object> rawMap;
         try {
-            rawMap = mapper.readValue(json, Map.class);
+            rawMap = mapper.readValue(stringifyJsonEntries(json), Map.class);
         } catch (JsonProcessingException e) {
             throw new RuntimeException(e);
         }
@@ -359,6 +360,22 @@ public class DebugpyClient {
         }
 
         return pyObjectRaw;
+    }
+
+    private String stringifyJsonEntries(String json) {
+        Pattern p = Pattern.compile("(:\\s*)([^\"{},\\s][^,}]*)");
+        Matcher m = p.matcher(json);
+        StringBuilder sb = new StringBuilder();
+        while (m.find()) {
+            String value = m.group(2).trim();
+            if (!(value.startsWith("\"") && value.endsWith("\""))) {
+                m.appendReplacement(sb, m.group(1) + "\"" + value + "\"");
+            } else {
+                m.appendReplacement(sb, m.group());
+            }
+        }
+        m.appendTail(sb);
+        return sb.toString();
     }
 
     private void getStackStrace() {

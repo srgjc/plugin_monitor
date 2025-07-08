@@ -4,6 +4,7 @@ import org.tzi.use.monitor.adapter.python.PythonAdapter;
 import org.tzi.use.plugins.monitor.vm.mm.VMField;
 import org.tzi.use.plugins.monitor.vm.mm.VMObject;
 import org.tzi.use.plugins.monitor.vm.mm.VMType;
+import org.tzi.use.uml.ocl.value.BooleanValue;
 import org.tzi.use.uml.ocl.value.IntegerValue;
 import org.tzi.use.uml.ocl.value.StringValue;
 import org.tzi.use.uml.ocl.value.Value;
@@ -62,6 +63,7 @@ public class PyObject extends PyBase implements VMObject {
         return switch (valTypeStr) {
             case "int" -> IntegerValue.valueOf(Integer.parseInt(valStr));
             case "str" -> new StringValue(valStr);
+            case "bool" -> BooleanValue.get(Boolean.parseBoolean(valStr));
             default -> null;
         };
     }
