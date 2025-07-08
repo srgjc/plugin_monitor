@@ -10,7 +10,7 @@ public class PyEvalExBuilder {
         String moduleName = qualifiedClassName.substring(0, lastDot);
         String className = qualifiedClassName.substring(lastDot + 1);
         return String.format(
-                "getattr(__import__('sys').modules['%s'], '%s').__annotations__",
+                "getattr(__import__('sys').modules['%s'], '%s').__init__.__annotations__",
                 moduleName,
                 className
         );
@@ -26,6 +26,7 @@ public class PyEvalExBuilder {
         );
     }
 
+    // TODO: migrate to python 3.11 getMembersStatic instead
     public static String getMethodsExpVar(String qualifiedClassName) {
         int lastDot = qualifiedClassName.lastIndexOf('.');
         String moduleName = qualifiedClassName.substring(0, lastDot);
