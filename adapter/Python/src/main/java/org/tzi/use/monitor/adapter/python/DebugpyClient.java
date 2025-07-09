@@ -19,6 +19,9 @@ import java.util.regex.Pattern;
  */
 public class DebugpyClient {
     private static final String WORKSPACE = "/Users/srgj/git/uni/ba/dpy-server";
+    private static final Pattern SIGNATURE_PATTERN = Pattern.compile("^(\\w+)\\((.*?)\\)\\s*->\\s*.*$");
+    private static final Pattern TYPE_CLASS_PATTERN = Pattern.compile("\"(\\w+)\":\\s*\"(\\w+)\"");
+    private static final Pattern JSON_STRINGIFY_PATTERN = Pattern.compile("(:\\s*)([^\"{},\\s][^,}]*)");
 
     private static int REQUEST_COUNTER = 1;
 
@@ -181,12 +184,11 @@ public class DebugpyClient {
 
     public static Map<String, Map<String, String>> parseMethodSignatures(String evalResp) {
         Map<String, Map<String, String>> result = new HashMap<>();
-        Pattern signaturePattern = Pattern.compile("^(\\w+)\\((.*?)\\)\\s*->\\s*.*$");
         evalResp = evalResp.strip().replaceAll("^'+|'+$", ""); // Remove outer quotes
         String[] lines = evalResp.split("\\\\n"); // split on literal `\n`
 
         for (String line : lines) {
-            Matcher matcher = signaturePattern.matcher(line.strip());
+            Matcher matcher = SIGNATURE_PATTERN.matcher(line.strip());
             if (matcher.matches()) {
                 String methodName = matcher.group(1);
                 String params = matcher.group(2);
@@ -220,8 +222,7 @@ public class DebugpyClient {
                 .replaceAll("<class\\s+\"(.*?)\">", "\"$1\"")
                 .replaceAll("<class\\s+'(.*?)'>", "\"$1\"");
 
-        Pattern pattern = Pattern.compile("\"(\\w+)\":\\s*\"(\\w+)\"");
-        Matcher matcher = pattern.matcher(cleaned);
+        Matcher matcher = TYPE_CLASS_PATTERN.matcher(cleaned);
 
         while (matcher.find()) {
             String variable = matcher.group(1);
@@ -363,8 +364,7 @@ public class DebugpyClient {
     }
 
     private String stringifyJsonEntries(String json) {
-        Pattern p = Pattern.compile("(:\\s*)([^\"{},\\s][^,}]*)");
-        Matcher m = p.matcher(json);
+        Matcher m = JSON_STRINGIFY_PATTERN.matcher(json);
         StringBuilder sb = new StringBuilder();
         while (m.find()) {
             String value = m.group(2).trim();
