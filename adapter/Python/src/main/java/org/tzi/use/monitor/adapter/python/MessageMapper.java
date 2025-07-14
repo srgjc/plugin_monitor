@@ -43,7 +43,6 @@ public class MessageMapper {
         String event = tree.get("event").asText();
         return switch (event) {
             case "initialized" -> mapper.readValue(json, InitializedEventClass.class);
-            case "breakpoint" -> mapper.readValue(json, BreakpointEventClass.class);
             case "stopped" -> mapper.readValue(json, StoppedEventClass.class);
             case "terminated" -> mapper.readValue(json, TerminatedEventClass.class);
             default -> null;

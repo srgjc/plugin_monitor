@@ -9,6 +9,7 @@ import org.tzi.use.monitor.plugins.monitor.vm.mm.python.*;
 
 import java.io.*;
 import java.net.Socket;
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.regex.Matcher;
@@ -18,7 +19,7 @@ import java.util.regex.Pattern;
  * @author Sergio Jimenez
  */
 public class DebugpyClient {
-    private static final String WORKSPACE = "/Users/srgj/git/uni/ba/dpy-server";
+    private static final String WORKSPACE = "/Users/serj/git/uni/dpy-server";
     private static final Pattern SIGNATURE_PATTERN = Pattern.compile("^(\\w+)\\((.*?)\\)\\s*->\\s*.*$");
     private static final Pattern TYPE_CLASS_PATTERN = Pattern.compile("\"(\\w+)\":\\s*\"(\\w+)\"");
     private static final Pattern JSON_STRINGIFY_PATTERN = Pattern.compile("(:\\s*)([^\"{},\\s][^,}]*)");
@@ -28,18 +29,17 @@ public class DebugpyClient {
     private final Socket socket;
     private final BufferedReader in;
     private final BufferedWriter out;
-    private final BreakpointHandler breakpointHandler;
     private final ObjectMapper mapper = new ObjectMapper();
     private CompletableFuture<DAPResponse> futureResp;
     private CompletableFuture<DAPEvent> initEvent;
     private CompletableFuture<DAPEvent> stoppedEvent;
     private boolean running = false;
+    protected final BlockingQueue<DAPEvent> eventQueue = new LinkedBlockingQueue<>();
 
-    DebugpyClient(String host, int port, BreakpointHandler breakpointHandler) throws IOException {
+    DebugpyClient(String host, int port) throws IOException {
         this.socket = new Socket(host, port);
         this.in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
         this.out = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
-        this.breakpointHandler = breakpointHandler;
         startReaderThread();
     }
 
@@ -166,7 +166,9 @@ public class DebugpyClient {
             } catch (JsonProcessingException e) {
                 return null;
             }
-            mRaw.setFile(root.get("file").asText());
+            String fileRaw = root.get("file").asText();
+            String normalizedFile = Paths.get(fileRaw).normalize().toString();
+            mRaw.setFile(normalizedFile);
             mRaw.setStartLineNo(root.get("start").asInt());
             mRaw.setEndLineNo(root.get("end").asInt() - 1);
             List<Integer> returnLines = new ArrayList<>();
@@ -302,7 +304,7 @@ public class DebugpyClient {
         return stopResp.getSuccess();
     }
 
-    private int getThreadId(String threadName) {
+    protected int getThreadId(String threadName) {
         System.out.println("Getting thread id: " + threadName);
         var threadsReq = new ThreadsRequestClass();
         threadsReq.setSeq(REQUEST_COUNTER++);
@@ -324,6 +326,23 @@ public class DebugpyClient {
         stackTraceReq.setArguments(stackTraceArgs);
         var stackTraceResp = (StackTraceResponseClass) sendRequest(stackTraceReq);
         return (int) stackTraceResp.getBody().getStackFrames()[0].getID();
+    }
+
+    protected StackFrame getCurrentFrame(int threadId) {
+        var stackTraceArgs = new StackTraceRequestArguments();
+        stackTraceArgs.setThreadID(threadId);
+        var stackTraceReq = new StackTraceRequestClass();
+        stackTraceReq.setSeq(REQUEST_COUNTER++);
+        stackTraceReq.setArguments(stackTraceArgs);
+        var stackTraceResp = (StackTraceResponseClass) sendRequest(stackTraceReq);
+        return stackTraceResp.getBody().getStackFrames()[0];
+    }
+
+    protected Thread[] getThreads() {
+        var threadsReq = new ThreadsRequestClass();
+        threadsReq.setSeq(REQUEST_COUNTER++);
+        var threadsResp = (ThreadsResponseClass) sendRequest(threadsReq);
+        return threadsResp.getBody().getThreads();
     }
 
     protected PyObjectRaw getInstance(PyType pyType) {
@@ -469,10 +488,11 @@ public class DebugpyClient {
                             initEvent.complete((DAPEvent) msg);
                         }
                         if (msg instanceof StoppedEventClass) {
-                           stoppedEvent.complete((DAPEvent) msg);
-                        }
-                        if (msg instanceof BreakpointEventClass) {
-                            handleBreakpoint((BreakpointEventClass) msg);
+                            if (((StoppedEventClass) msg).getBody().getReason().equals("breakpoint")) {
+                                eventQueue.add((DAPEvent) msg);
+                            } else {
+                                stoppedEvent.complete((DAPEvent) msg);
+                            }
                         }
                     }
                 }
@@ -482,10 +502,6 @@ public class DebugpyClient {
         });
         readerThread.setDaemon(true);
         readerThread.start();
-    }
-
-    private void handleBreakpoint(BreakpointEventClass event) {
-        breakpointHandler.handleBreakpoint(event);
     }
 
 }

@@ -1,6 +1,6 @@
 package org.tzi.use.monitor.adapter.python;
 
-import org.tzi.use.monitor.adapter.python.dap.BreakpointEventClass;
+import org.tzi.use.monitor.adapter.python.dap.*;
 import org.tzi.use.monitor.plugins.monitor.vm.mm.python.PyMethod;
 import org.tzi.use.monitor.plugins.monitor.vm.mm.python.PyObject;
 import org.tzi.use.monitor.plugins.monitor.vm.mm.python.PyType;
@@ -11,6 +11,7 @@ import org.tzi.use.plugins.monitor.vm.adapter.VMAdapterSetting;
 import org.tzi.use.plugins.monitor.vm.mm.*;
 import org.tzi.use.uml.ocl.value.Value;
 
+import java.lang.Thread;
 import java.util.*;
 
 /**
@@ -27,6 +28,7 @@ public class PythonAdapter extends AbstractVMAdapter {
     private DebugpyClient debugpyClient;
     public Map<String, PyType> typeMapping;
     private Map<String, Map<Integer, BreakpointType>> breakpoints;
+    private Thread breakpointWatcher;
 
     public Set<VMObject> readInstances(PyType type) {
         var className = type.getName();
@@ -72,7 +74,7 @@ public class PythonAdapter extends AbstractVMAdapter {
         breakpoints = new HashMap<>();
 
         try {
-            debugpyClient = new DebugpyClient(host, port, new Handler());
+            debugpyClient = new DebugpyClient(host, port);
         } catch (Exception e) {
             throw new MonitorException("Failed to create socket!", e);
         }
@@ -81,6 +83,8 @@ public class PythonAdapter extends AbstractVMAdapter {
 
         if (debugpyClient.attach(host, port)) {
             isConnected = true;
+            breakpointWatcher = new Thread(new BreakpointWatcher(), "PythonAdapter breakpoint watcher");
+            breakpointWatcher.start();
             System.out.println("Connected to debugpy server!");
         } else {
             System.out.println("Failed to attach to debugpy server!");
@@ -205,12 +209,43 @@ public class PythonAdapter extends AbstractVMAdapter {
 
     }
 
-    private class Handler implements BreakpointHandler {
+    private class BreakpointWatcher implements Runnable {
 
         @Override
-        public void handleBreakpoint(BreakpointEventClass event) {
-            // TODO
+        public void run() {
+            while (isConnected) {
+                try {
+                    StoppedEventClass event = (StoppedEventClass) debugpyClient.eventQueue.take();
+                    if (!isConnected) {
+                        return;
+                    }
+
+                    // Get file and live at current frame
+                    var currFrame = debugpyClient.getCurrentFrame(Math.toIntExact(event.getBody().getThreadID()));
+                    System.out.println("Current Frame: " + currFrame);
+
+                    // Breakpoint Type Lookup
+                    BreakpointType bpt = breakpoints.get(currFrame.getSource().getPath()).get((int) currFrame.getLine());
+                    System.out.println("BreakpointType: " + bpt.name());
+
+
+                    // get VMMethod from controller storage. Condition: Make sure it is stored on creation!
+
+                    // Create PyMethodCall
+
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            }
         }
+    }
+
+    private void handleConstructorCall(StackFrame stackFrame) {
+
+    }
+
+    private void handleMethodCall(StackFrame stackFrame) {
+
     }
 
     @Override

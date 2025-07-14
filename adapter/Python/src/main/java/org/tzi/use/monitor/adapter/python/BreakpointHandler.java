@@ -1,7 +1,7 @@
 package org.tzi.use.monitor.adapter.python;
 
-import org.tzi.use.monitor.adapter.python.dap.BreakpointEventClass;
+import org.tzi.use.monitor.adapter.python.dap.StoppedEventClass;
 
 public interface BreakpointHandler {
-    void handleBreakpoint(BreakpointEventClass event);
+    void handleBreakpoint(StoppedEventClass event);
 }
