@@ -233,16 +233,18 @@ public class DebugpyClient {
         return result;
     }
 
-    protected boolean setBreakpoint(PyMethod pyMethod) {
+    protected boolean setBreakpoint(String file, List<Integer> lines) {
         var source = new Source();
-        source.setPath(pyMethod.getMethod().getFile());
+        source.setPath(file);
         var bpArgs = new SetBreakpointsRequestArguments();
         bpArgs.setSource(source);
-        var bpSrcStart = new SourceBreakpoint();
-        bpSrcStart.setLine(pyMethod.getMethod().getStartLineNo());
-        var bpSrcEnd = new SourceBreakpoint();
-        bpSrcEnd.setLine(pyMethod.getMethod().getEndLineNo());
-        bpArgs.setBreakpoints(new SourceBreakpoint[]{bpSrcStart, bpSrcEnd});
+        SourceBreakpoint[] sourceBreakpoints = new SourceBreakpoint[lines.size()];
+        for (int i = 0; i < sourceBreakpoints.length; i++) {
+            var srcBp = new SourceBreakpoint();
+            srcBp.setLine(lines.get(i));
+            sourceBreakpoints[i] = srcBp;
+        }
+        bpArgs.setBreakpoints(sourceBreakpoints);
         var bpReq = new SetBreakpointsRequestClass();
         bpReq.setSeq(REQUEST_COUNTER++);
         bpReq.setArguments(bpArgs);
