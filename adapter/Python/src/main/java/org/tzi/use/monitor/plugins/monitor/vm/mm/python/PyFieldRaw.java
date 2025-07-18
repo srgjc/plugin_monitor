@@ -34,4 +34,13 @@ public class PyFieldRaw {
     public void setValue(String value) {
         this.value = value;
     }
+
+    @Override
+    public String toString() {
+        return "PyFieldRaw{" +
+                "name='" + name + '\'' +
+                ", type='" + type + '\'' +
+                ", value='" + value + '\'' +
+                '}';
+    }
 }

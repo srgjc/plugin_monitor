@@ -2,6 +2,8 @@ package org.tzi.use.monitor.adapter.python.dap;
 
 import com.fasterxml.jackson.annotation.*;
 
+import java.util.Arrays;
+
 /**
  * The source where the breakpoint is located.
  *
@@ -116,4 +118,18 @@ public class Source {
     public Source[] getSources() { return sources; }
     @JsonProperty("sources")
     public void setSources(Source[] value) { this.sources = value; }
+
+    @Override
+    public String toString() {
+        return "Source{" +
+                "adapterData=" + adapterData +
+                ", checksums=" + Arrays.toString(checksums) +
+                ", name='" + name + '\'' +
+                ", origin='" + origin + '\'' +
+                ", path='" + path + '\'' +
+                ", presentationHint=" + presentationHint +
+                ", sourceReference=" + sourceReference +
+                ", sources=" + Arrays.toString(sources) +
+                '}';
+    }
 }

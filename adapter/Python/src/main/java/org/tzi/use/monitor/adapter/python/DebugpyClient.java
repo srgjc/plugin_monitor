@@ -9,6 +9,7 @@ import org.tzi.use.monitor.plugins.monitor.vm.mm.python.*;
 
 import java.io.*;
 import java.net.Socket;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.*;
@@ -33,7 +34,7 @@ public class DebugpyClient {
     private CompletableFuture<DAPResponse> futureResp;
     private CompletableFuture<DAPEvent> initEvent;
     private CompletableFuture<DAPEvent> stoppedEvent;
-    private boolean running = false;
+    protected boolean running = false;
     protected final BlockingQueue<DAPEvent> eventQueue = new LinkedBlockingQueue<>();
 
     DebugpyClient(String host, int port) throws IOException {
@@ -113,6 +114,7 @@ public class DebugpyClient {
         };
 
         if (t != null) {
+            t.setPrimitive(true);
             return t;
         }
 
@@ -170,7 +172,7 @@ public class DebugpyClient {
             String normalizedFile = Paths.get(fileRaw).normalize().toString();
             mRaw.setFile(normalizedFile);
             mRaw.setStartLineNo(root.get("start").asInt());
-            mRaw.setEndLineNo(root.get("end").asInt() - 1);
+            mRaw.setEndLineNo(root.get("end").asInt());
             List<Integer> returnLines = new ArrayList<>();
             for (JsonNode r : root.get("returns")) {
                 returnLines.add(r.asInt());
@@ -181,7 +183,49 @@ public class DebugpyClient {
             methods.add(mRaw);
         }
         rawType.setMethods(methods);
+
+        // Set File
+        evalArgs.setExpression(PyEvalExBuilder.getFileForClass(qualifiedClassName));
+        evalReq.setSeq(REQUEST_COUNTER++);
+        evalResp = (EvaluateResponseClass) sendRequest(evalReq);
+
+        String file = evalResp.getBody().getResult();
+        String normalizedPath = Path.of(file).normalize().toString().replace("'", "");
+        System.out.println("SETTING FILE TO: " + normalizedPath);
+        rawType.setFile(normalizedPath);
+
         return rawType;
+    }
+
+    protected Map<String, String> getRuntimeInstanceVars(long frameId) {
+        var evalArgs = new EvaluateRequestArguments();
+        evalArgs.setExpression("self.__dict__");
+        evalArgs.setContext("watch");
+        evalArgs.setFrameID(frameId);
+        var evalReq = new EvaluateRequestClass();
+        evalReq.setSeq(REQUEST_COUNTER++);
+        evalReq.setArguments(evalArgs);
+        var evalResp = (EvaluateResponseClass) sendRequest(evalReq);
+
+        String result = evalResp.getBody().getResult();
+        System.out.println("INSTANCE_VARS: " + result);
+        String jsonCompatible = result.replace('\'', '"');
+        Map<String, Object> map = null;
+        try {
+            map = mapper.readValue(jsonCompatible, Map.class);
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException(e);
+        }
+
+        // Optionally stringify values:
+        Map<String, String> finalMap = new HashMap<>();
+        for (Map.Entry<String, Object> entry : map.entrySet()) {
+            finalMap.put(entry.getKey(), String.valueOf(entry.getValue()));
+        }
+
+        System.out.println("final Map: " + finalMap);
+
+        return finalMap;
     }
 
     public static Map<String, Map<String, String>> parseMethodSignatures(String evalResp) {
@@ -374,7 +418,12 @@ public class DebugpyClient {
             result.put(entry.getKey(), entry.getValue().toString());
         }
 
-        var pyObjectRaw = new PyObjectRaw();
+        // Set instance ID
+        evalArgs.setExpression(PyEvalExBuilder.getInstanceId(pyType.getName()));
+        evalReq.setSeq(REQUEST_COUNTER++);
+        evalResp = (EvaluateResponseClass) sendRequest(evalReq);
+
+        PyObjectRaw pyObjectRaw = new PyObjectRaw(Long.parseLong(evalResp.getBody().getResult()));
         pyObjectRaw.setRawType(pyType.getRawType());
         for (PyFieldRaw rawField : pyObjectRaw.getRawType().getFields()) {
             System.out.println("Setting value '" + result.get(rawField.getName()) + "' to field '" + rawField.getName());
@@ -401,6 +450,18 @@ public class DebugpyClient {
 
     private void getStackStrace() {
 
+    }
+
+    protected Long getSelfId(long frameId) {
+        var evalArgs = new EvaluateRequestArguments();
+        evalArgs.setFrameID(frameId);
+        evalArgs.setContext("watch");
+        evalArgs.setExpression(PyEvalExBuilder.getSelfIdAtCurrentFrame());
+        var evalReq = new EvaluateRequestClass();
+        evalReq.setSeq(REQUEST_COUNTER++);
+        evalReq.setArguments(evalArgs);
+        var evalResp = (EvaluateResponseClass) sendRequest(evalReq);
+        return Long.parseLong(evalResp.getBody().getResult());
     }
 
     private DAPResponse sendRequest(DAPRequest dapRequest) {
@@ -489,6 +550,7 @@ public class DebugpyClient {
                         }
                         if (msg instanceof StoppedEventClass) {
                             if (((StoppedEventClass) msg).getBody().getReason().equals("breakpoint")) {
+                                running = false;
                                 eventQueue.add((DAPEvent) msg);
                             } else {
                                 stoppedEvent.complete((DAPEvent) msg);

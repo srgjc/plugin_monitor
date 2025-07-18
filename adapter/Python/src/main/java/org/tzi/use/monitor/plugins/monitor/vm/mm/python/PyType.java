@@ -81,4 +81,11 @@ public class PyType extends PyBase implements VMType {
         return f != null ? new PyField(adapter, f) : null;
     }
 
+    @Override
+    public String toString() {
+        return "PyType{" +
+                "rawType=" + rawType +
+                ", useClass=" + useClass +
+                '}';
+    }
 }

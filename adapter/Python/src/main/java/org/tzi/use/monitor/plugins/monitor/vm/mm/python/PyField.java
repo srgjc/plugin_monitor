@@ -12,6 +12,8 @@ public class PyField extends PyBase implements VMField {
     private final Object id;
     private final PyFieldRaw pyFieldRaw;
 
+    private MAttribute useAttribute;
+
     public PyField(PythonAdapter adapter, PyFieldRaw pyFieldRaw) {
         super(adapter);
         this.pyFieldRaw = pyFieldRaw;
@@ -25,12 +27,12 @@ public class PyField extends PyBase implements VMField {
 
     @Override
     public void setUSEAttribute(MAttribute attr) {
-
+        this.useAttribute = attr;
     }
 
     @Override
     public MAttribute getUSEAttribute() {
-        return null;
+        return useAttribute;
     }
 
     @Override
@@ -52,4 +54,11 @@ public class PyField extends PyBase implements VMField {
         return pyFieldRaw;
     }
 
+    @Override
+    public String toString() {
+        return "PyField{" +
+                "id=" + id +
+                ", pyFieldRaw=" + pyFieldRaw +
+                '}';
+    }
 }

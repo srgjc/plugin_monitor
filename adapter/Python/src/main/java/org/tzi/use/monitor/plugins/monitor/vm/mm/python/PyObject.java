@@ -10,13 +10,10 @@ import org.tzi.use.uml.ocl.value.StringValue;
 import org.tzi.use.uml.ocl.value.Value;
 import org.tzi.use.uml.sys.MObject;
 
-import java.util.UUID;
-
 public class PyObject extends PyBase implements VMObject {
 
     private final PyObjectRaw rawObject;
     private final VMType type;
-    private final Object id;
 
     private MObject useObject;
 
@@ -24,12 +21,11 @@ public class PyObject extends PyBase implements VMObject {
         super(adapter);
         this.rawObject = rawObject;
         this.type = type;
-        this.id = UUID.randomUUID();
     }
 
     @Override
     public Object getId() {
-        return id;
+        return rawObject.getId();
     }
 
     @Override
@@ -54,6 +50,7 @@ public class PyObject extends PyBase implements VMObject {
 
     @Override
     public Value getValue(VMField field) {
+        // TODO dont get from internal value, but new debugpy call
         System.out.println("getValue for:" + field.getName());
         PyField f = (PyField) field;
         String valTypeStr = f.getPyFieldRaw().getType();

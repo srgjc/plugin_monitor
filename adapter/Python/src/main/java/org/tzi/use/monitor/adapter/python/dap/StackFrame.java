@@ -118,4 +118,21 @@ public class StackFrame {
     public Source getSource() { return source; }
     @JsonProperty("source")
     public void setSource(Source value) { this.source = value; }
+
+    @Override
+    public String toString() {
+        return "StackFrame{" +
+                "canRestart=" + canRestart +
+                ", column=" + column +
+                ", endColumn=" + endColumn +
+                ", endLine=" + endLine +
+                ", id=" + id +
+                ", instructionPointerReference='" + instructionPointerReference + '\'' +
+                ", line=" + line +
+                ", moduleID=" + moduleID +
+                ", name='" + name + '\'' +
+                ", presentationHint=" + presentationHint +
+                ", source=" + source +
+                '}';
+    }
 }

@@ -6,6 +6,8 @@ public class PyTypeRaw {
     private String name;
     private List<PyFieldRaw> fields;
     private List<PyMethodRaw> methods;
+    private boolean isPrimitive;
+    private String file;
 
     public PyTypeRaw(String name) {
         this.name = name;
@@ -35,4 +37,30 @@ public class PyTypeRaw {
         this.methods = methods;
     }
 
+    public boolean isPrimitive() {
+        return isPrimitive;
+    }
+
+    public void setPrimitive(boolean primitive) {
+        isPrimitive = primitive;
+    }
+
+    public String getFile() {
+        return file;
+    }
+
+    public void setFile(String file) {
+        this.file = file;
+    }
+
+    @Override
+    public String toString() {
+        return "PyTypeRaw{" +
+                "name='" + name + '\'' +
+                ", fields=" + fields +
+                ", methods=" + methods +
+                ", isPrimitive=" + isPrimitive +
+                ", file='" + file + '\'' +
+                '}';
+    }
 }
