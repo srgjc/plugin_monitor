@@ -32,6 +32,8 @@ import java.util.Arrays;
  *
  * The source of the frame.
  */
+
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class Source {
     private Restart adapterData;
     private Checksum[] checksums;

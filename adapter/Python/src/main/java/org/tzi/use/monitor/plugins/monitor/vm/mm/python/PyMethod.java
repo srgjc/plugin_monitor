@@ -7,24 +7,20 @@ import org.tzi.use.uml.mm.MOperation;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 
 public class PyMethod extends PyBase implements VMMethod {
 
     private final PyMethodRaw method;
-
     private MOperation useOperation;
-    private UUID id;
 
     public PyMethod(PythonAdapter adapter, PyMethodRaw method) {
         super(adapter);
         this.method = method;
-        this.id = UUID.randomUUID();
     }
 
     @Override
     public Object getId() {
-        return id;
+        return method.getClassName() + ":" + method.getName();
     }
 
     @Override
@@ -60,7 +56,7 @@ public class PyMethod extends PyBase implements VMMethod {
         return "PyMethod{" +
                 "method=" + method +
                 ", useOperation=" + useOperation +
-                ", id=" + id +
+                ", id=" + getId() +
                 '}';
     }
 }

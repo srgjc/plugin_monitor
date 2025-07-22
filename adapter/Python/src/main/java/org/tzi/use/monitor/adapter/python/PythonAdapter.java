@@ -104,13 +104,13 @@ public class PythonAdapter extends AbstractVMAdapter {
 
     @Override
     public void suspend() {
-        System.out.println("Suspended debugpy server...");
+        System.out.println("Suspending debugpy server...");
         debugpyClient.pause();
     }
 
     @Override
     public void stop() {
-        System.out.println("Stopped debugpy server...");
+        System.out.println("Stopping debugpy server...");
         debugpyClient.stop();
         isConnected = false;
     }
@@ -197,17 +197,14 @@ public class PythonAdapter extends AbstractVMAdapter {
         if (!breakpoints.containsKey(constructor.getMethod().getFile())) {
             Map<Integer, BreakpointType> breakpointTypeMap = new HashMap<>();
             breakpointTypeMap.put(constructor.getMethod().getStartLineNo(), BreakpointType.CONSTRUCTOR_CALL);
-            breakpointTypeMap.put(constructor.getMethod().getEndLineNo(), BreakpointType.CONSTRUCTOR_EXIT);
             breakpoints.put(constructor.getMethod().getFile(), breakpointTypeMap);
         } else {
            Map<Integer, BreakpointType> currBps = breakpoints.get(constructor.getMethod().getFile());
            currBps.put(constructor.getMethod().getStartLineNo(), BreakpointType.CONSTRUCTOR_CALL);
-           currBps.put(constructor.getMethod().getEndLineNo(), BreakpointType.CONSTRUCTOR_EXIT);
         }
         String file = constructor.getMethod().getFile();
         List<Integer> toSet = new ArrayList<>();
         toSet.add(constructor.getMethod().getStartLineNo());
-        toSet.add(constructor.getMethod().getEndLineNo());
         debugpyClient.setBreakpoint(file, toSet);
         System.out.println("BREAKPOINT_MAP: " + breakpoints);
     }
@@ -241,7 +238,7 @@ public class PythonAdapter extends AbstractVMAdapter {
 
                     var qualifiedClassName = fileToClassNameMap.get(file);
 
-                    if (bpt == BreakpointType.CONSTRUCTOR_EXIT) {
+                    if (bpt == BreakpointType.CONSTRUCTOR_CALL) {
                         handleConstructorCall(currFrame, qualifiedClassName);
                     } else if (bpt == BreakpointType.METHOD_CALL) {
                         handleMethodCall(currFrame, qualifiedClassName);
@@ -251,6 +248,8 @@ public class PythonAdapter extends AbstractVMAdapter {
                         handleAttributeModification(currFrame, qualifiedClassName);
                     }
 
+                    // Match monitor running state
+                    debugpyClient.resume();
                 } catch (InterruptedException e) {
                     throw new RuntimeException(e);
                 }
@@ -269,24 +268,22 @@ public class PythonAdapter extends AbstractVMAdapter {
 
         System.out.println("OnConstructor OBJECT_ID: " + pyObjectRaw.getId());
         controller.onNewVMObject(pyObject);
-
-        // Match monitor running state
-        debugpyClient.resume();
     }
 
     private void handleMethodCall(StackFrame stackFrame, String fullyQualifiedClassName) {
         controller.newLogMessage(this, Level.FINE, String.format("onMethodCall: %s.%s", fullyQualifiedClassName, stackFrame.getName()));
 
         PyType pyType = typeMapping.get(fullyQualifiedClassName);
-        PyMethod pyMethod = (PyMethod) pyType.getMethodsByName(stackFrame.getName());
-        PyMethodCall pyMethodCall = new PyMethodCall(this, pyMethod);
+        PyMethod internalPyMethod = (PyMethod) pyType.getMethodsByName(stackFrame.getName()).getFirst();
+        PyMethod upToDatePyMethod = (PyMethod) controller.getVMMethod(internalPyMethod.getId());
+        PyMethodCall pyMethodCall = new PyMethodCall(this, upToDatePyMethod);
 
         controller.onMethodCall(pyMethodCall);
     }
 
     private void handleMethodExit(StackFrame stackFrame, String qualifiedClassName, StoppedEventClass stoppedEvent) {
         PyType pyType = typeMapping.get(qualifiedClassName);
-        PyMethod pyMethod = (PyMethod) pyType.getMethodsByName(stackFrame.getName());
+        PyMethod pyMethod = (PyMethod) pyType.getMethodsByName(stackFrame.getName()).getFirst();
         // TODO construct method call with runtime values
         controller.onMethodExit(pyMethod, pyMethod.getId());
     }
@@ -296,7 +293,6 @@ public class PythonAdapter extends AbstractVMAdapter {
         // update class instance variables from __dict__
         // get object id from current frame
         // get field name from method name
-
     }
 
     @Override

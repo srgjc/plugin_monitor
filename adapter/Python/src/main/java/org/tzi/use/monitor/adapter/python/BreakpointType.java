@@ -4,6 +4,5 @@ public enum BreakpointType {
     METHOD_CALL,
     METHOD_EXIT,
     CONSTRUCTOR_CALL,
-    CONSTRUCTOR_EXIT,
     MODIFICATION
 }

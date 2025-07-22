@@ -5,6 +5,8 @@ import com.fasterxml.jackson.annotation.*;
 /**
  * Properties of a breakpoint or logpoint passed to the `setBreakpoints` request.
  */
+
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class SourceBreakpoint {
     private Long column;
     private String condition;

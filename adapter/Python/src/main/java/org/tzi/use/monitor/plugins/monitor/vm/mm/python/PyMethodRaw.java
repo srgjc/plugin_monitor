@@ -10,6 +10,15 @@ public class PyMethodRaw {
     private int endLineNo;
     private String file;
     private List<Integer> returnLines;
+    private String className;
+
+    public String getClassName() {
+        return className;
+    }
+
+    public void setClassName(String className) {
+        this.className = className;
+    }
 
     public String getName() {
         return name;

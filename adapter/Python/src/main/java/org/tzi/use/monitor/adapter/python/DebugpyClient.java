@@ -149,6 +149,7 @@ public class DebugpyClient {
             PyMethodRaw mRaw = new PyMethodRaw();
             // Set name
             mRaw.setName(mName);
+            mRaw.setClassName(qualifiedClassName);
             // Set arg type names
             List<String> argTypeNames = new LinkedList<>();
             for (Map.Entry<String, String> mArg : mSigs.get(mName).entrySet()) {
@@ -281,6 +282,7 @@ public class DebugpyClient {
 
     protected boolean setBreakpoint(String file, List<Integer> lines) {
         var source = new Source();
+        source.setName(file.substring(file.lastIndexOf("/") + 1));
         source.setPath(file);
         var bpArgs = new SetBreakpointsRequestArguments();
         bpArgs.setSource(source);
@@ -291,6 +293,8 @@ public class DebugpyClient {
             sourceBreakpoints[i] = srcBp;
         }
         bpArgs.setBreakpoints(sourceBreakpoints);
+        bpArgs.setLines(lines.stream().mapToLong(Integer::longValue).toArray());
+        bpArgs.setSourceModified(false);
         var bpReq = new SetBreakpointsRequestClass();
         bpReq.setSeq(REQUEST_COUNTER++);
         bpReq.setArguments(bpArgs);
