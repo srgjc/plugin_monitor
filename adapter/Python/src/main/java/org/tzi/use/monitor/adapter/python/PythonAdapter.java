@@ -152,26 +152,25 @@ public class PythonAdapter extends AbstractVMAdapter {
     @Override
     public void registerOperationCallInterest(VMMethod m) {
         if (!m.getName().equals("__init__")) {
-            PyMethod pyMethod = (PyMethod) m;
-            if (!breakpoints.containsKey(pyMethod.getMethod().getFile())) {
-                Map<Integer, BreakpointType> lineBreakpointTypes = new HashMap<>();
-                lineBreakpointTypes.put(pyMethod.getMethod().getStartLineNo(), BreakpointType.METHOD_CALL);
-                for (Integer rLine : pyMethod.getMethod().getReturnLines()) {
-                    lineBreakpointTypes.put(rLine, BreakpointType.METHOD_EXIT);
+            PyMethodRaw method = ((PyMethod) m).getMethod();
+            String file = method.getFile();
+            int startLine = method.getStartLineNo();
+            List<Integer> returnLines = method.getReturnLines();
+            if (!breakpoints.containsKey(file)) {
+                Map<Integer, BreakpointType> breakpointTypes = new HashMap<>();
+                breakpointTypes.put(startLine, BreakpointType.METHOD_CALL);
+                for (Integer returnLine : returnLines) {
+                    breakpointTypes.put(returnLine, BreakpointType.METHOD_EXIT);
                 }
-                breakpoints.put(pyMethod.getMethod().getFile(), lineBreakpointTypes);
+                breakpoints.put(file, breakpointTypes);
             } else {
-                Map<Integer, BreakpointType> lineBreakpointTypes = breakpoints.get(pyMethod.getMethod().getFile());
-                lineBreakpointTypes.put(pyMethod.getMethod().getStartLineNo(), BreakpointType.METHOD_CALL);
-                for (Integer rLine : pyMethod.getMethod().getReturnLines()) {
-                    lineBreakpointTypes.put(rLine, BreakpointType.METHOD_EXIT);
+                Map<Integer, BreakpointType> lineBreakpointTypes = breakpoints.get(file);
+                lineBreakpointTypes.put(startLine, BreakpointType.METHOD_CALL);
+                for (Integer returnLine : returnLines) {
+                    lineBreakpointTypes.put(returnLine, BreakpointType.METHOD_EXIT);
                 }
             }
-            String file = pyMethod.getMethod().getFile();
-            List<Integer> setBreakpoints = new ArrayList<>();
-            setBreakpoints.add(pyMethod.getMethod().getStartLineNo());
-            setBreakpoints.addAll(pyMethod.getMethod().getReturnLines());
-            debugpyClient.setBreakpoint(file, setBreakpoints);
+            debugpyClient.setBreakpoints(file, breakpoints.get(file).keySet());
         }
         System.out.println("BREAKPOINT_MAP: " + breakpoints);
     }
@@ -193,19 +192,18 @@ public class PythonAdapter extends AbstractVMAdapter {
 
     @Override
     public void registerConstructorCallInterest(VMType vmType) {
-        PyMethod constructor = (PyMethod) vmType.getMethodsByName("__init__").getFirst();
-        if (!breakpoints.containsKey(constructor.getMethod().getFile())) {
+        PyMethodRaw method = ((PyMethod) vmType.getMethodsByName("__init__").getFirst()).getMethod();
+        String file = method.getFile();
+        int startLine = method.getStartLineNo();
+        if (!breakpoints.containsKey(file)) {
             Map<Integer, BreakpointType> breakpointTypeMap = new HashMap<>();
-            breakpointTypeMap.put(constructor.getMethod().getStartLineNo(), BreakpointType.CONSTRUCTOR_CALL);
-            breakpoints.put(constructor.getMethod().getFile(), breakpointTypeMap);
+            breakpointTypeMap.put(startLine, BreakpointType.CONSTRUCTOR_CALL);
+            breakpoints.put(file, breakpointTypeMap);
         } else {
-           Map<Integer, BreakpointType> currBps = breakpoints.get(constructor.getMethod().getFile());
-           currBps.put(constructor.getMethod().getStartLineNo(), BreakpointType.CONSTRUCTOR_CALL);
+           Map<Integer, BreakpointType> currBps = breakpoints.get(file);
+           currBps.put(startLine, BreakpointType.CONSTRUCTOR_CALL);
         }
-        String file = constructor.getMethod().getFile();
-        List<Integer> toSet = new ArrayList<>();
-        toSet.add(constructor.getMethod().getStartLineNo());
-        debugpyClient.setBreakpoint(file, toSet);
+        debugpyClient.setBreakpoints(file, breakpoints.get(file).keySet());
         System.out.println("BREAKPOINT_MAP: " + breakpoints);
     }
 

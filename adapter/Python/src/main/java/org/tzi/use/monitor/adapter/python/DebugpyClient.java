@@ -280,16 +280,17 @@ public class DebugpyClient {
         return result;
     }
 
-    protected boolean setBreakpoint(String file, List<Integer> lines) {
+    protected boolean setBreakpoints(String file, Set<Integer> lines) {
         var source = new Source();
         source.setName(file.substring(file.lastIndexOf("/") + 1));
         source.setPath(file);
         var bpArgs = new SetBreakpointsRequestArguments();
         bpArgs.setSource(source);
         SourceBreakpoint[] sourceBreakpoints = new SourceBreakpoint[lines.size()];
+        Iterator<Integer> linesIter = lines.iterator();
         for (int i = 0; i < sourceBreakpoints.length; i++) {
             var srcBp = new SourceBreakpoint();
-            srcBp.setLine(lines.get(i));
+            srcBp.setLine(linesIter.next());
             sourceBreakpoints[i] = srcBp;
         }
         bpArgs.setBreakpoints(sourceBreakpoints);
