@@ -74,11 +74,12 @@ public class PyType extends PyBase implements VMType {
 
     @Override
     public VMField getFieldByName(String javaFieldName) {
+        System.out.println("Getting field by name: " + javaFieldName);
         PyFieldRaw f = rawType.getFields().stream()
                 .filter(fi -> fi.getName().equals(javaFieldName))
                 .findFirst()
                 .orElse(null);
-        return f != null ? new PyField(adapter, f) : null;
+        return f != null ? new PyField(adapter, f, getName()) : null;
     }
 
     @Override

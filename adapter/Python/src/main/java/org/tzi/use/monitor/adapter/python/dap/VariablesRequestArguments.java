@@ -5,6 +5,7 @@ import com.fasterxml.jackson.annotation.*;
 /**
  * Arguments for `variables` request.
  */
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class VariablesRequestArguments {
     private Long count;
     private Filter filter;

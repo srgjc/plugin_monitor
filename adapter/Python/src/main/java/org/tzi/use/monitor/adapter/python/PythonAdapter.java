@@ -1,5 +1,6 @@
 package org.tzi.use.monitor.adapter.python;
 
+import org.tzi.use.monitor.adapter.python.custom.DAPValue;
 import org.tzi.use.monitor.adapter.python.dap.*;
 import org.tzi.use.monitor.plugins.monitor.vm.mm.python.*;
 import org.tzi.use.plugins.monitor.MonitorException;
@@ -7,7 +8,8 @@ import org.tzi.use.plugins.monitor.vm.adapter.AbstractVMAdapter;
 import org.tzi.use.plugins.monitor.vm.adapter.InvalidAdapterConfiguration;
 import org.tzi.use.plugins.monitor.vm.adapter.VMAdapterSetting;
 import org.tzi.use.plugins.monitor.vm.mm.*;
-import org.tzi.use.uml.ocl.value.Value;
+import org.tzi.use.uml.ocl.type.TypeFactory;
+import org.tzi.use.uml.ocl.value.*;
 
 import java.lang.Thread;
 import java.util.*;
@@ -130,9 +132,55 @@ public class PythonAdapter extends AbstractVMAdapter {
             }
             typeMapping.put(name, res);
         }
-        System.out.println("Got VMType '" + name + "'...");
+        System.out.println("Got VMType '" + name + "'..." + res);
         return typeMapping.get(name);
     }
+
+    public DAPValue getDAPValue(Long objId, String fName) {
+        return debugpyClient.getDAPValue(objId, fName);
+    }
+
+
+    public Value getUSEValue(DAPValue dapValue) {
+        if (dapValue == null) {
+            return UndefinedValue.instance;
+        }
+
+        System.out.println("Getting DAPValue for type: " + dapValue.getType());
+
+        return switch (dapValue.getType()) {
+            case "int" -> IntegerValue.valueOf(Integer.parseInt(dapValue.getResult()));
+            case "bool" -> BooleanValue.get(Boolean.parseBoolean(dapValue.getResult()));
+            case "str" -> new StringValue(dapValue.getResult());
+            case "list"-> {
+                List<DAPValue> allChildren = fetchChildren(dapValue.getVariablesReference());
+                // Filter only numeric-named entries (actual list indices)
+                List<DAPValue> items = allChildren.stream()
+                        .filter(child -> child.getName().matches("\\d+"))  // only "0", "1", etc.
+                        .sorted(Comparator.comparingInt(child -> Integer.parseInt(child.getName()))) // ensure correct order
+                        .toList();
+
+                Value[] sequence = new Value[items.size()];
+                for (int i = 0; i < items.size(); i++) {
+                    sequence[i] = getUSEValue(items.get(i));
+                }
+                yield new SequenceValue(TypeFactory.mkVoidType(), sequence);
+            }
+            default -> UndefinedValue.instance;
+        };
+    }
+
+    private List<DAPValue> fetchChildren(long variablesReference) {
+        List<DAPValue> res = new ArrayList<>();
+        Variable[] vars = debugpyClient.getDAPChildren(variablesReference);
+        for (Variable var : vars) {
+            var dapVal = new DAPValue(var.getValue(), var.getType(), var.getVariablesReference());
+            dapVal.setName(var.getName());
+            res.add(dapVal);
+        }
+        return res;
+    }
+
 
     @Override
     public void registerClassPrepareEvent(String javaClassName) {

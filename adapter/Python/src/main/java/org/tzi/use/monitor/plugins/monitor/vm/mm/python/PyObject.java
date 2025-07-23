@@ -1,12 +1,10 @@
 package org.tzi.use.monitor.plugins.monitor.vm.mm.python;
 
 import org.tzi.use.monitor.adapter.python.PythonAdapter;
+import org.tzi.use.monitor.adapter.python.custom.DAPValue;
 import org.tzi.use.plugins.monitor.vm.mm.VMField;
 import org.tzi.use.plugins.monitor.vm.mm.VMObject;
 import org.tzi.use.plugins.monitor.vm.mm.VMType;
-import org.tzi.use.uml.ocl.value.BooleanValue;
-import org.tzi.use.uml.ocl.value.IntegerValue;
-import org.tzi.use.uml.ocl.value.StringValue;
 import org.tzi.use.uml.ocl.value.Value;
 import org.tzi.use.uml.sys.MObject;
 
@@ -50,19 +48,8 @@ public class PyObject extends PyBase implements VMObject {
 
     @Override
     public Value getValue(VMField field) {
-        // TODO dont get from internal value, but new debugpy call
-        System.out.println("getValue for:" + field.getName());
-        PyField f = (PyField) field;
-        String valTypeStr = f.getPyFieldRaw().getType();
-        System.out.println("getValue valTypeStr:" + valTypeStr);
-        String valStr = f.getPyFieldRaw().getValue();
-        System.out.println("getValue valstr:" + valStr);
-        return switch (valTypeStr) {
-            case "int" -> IntegerValue.valueOf(Integer.parseInt(valStr));
-            case "str" -> new StringValue(valStr);
-            case "bool" -> BooleanValue.get(Boolean.parseBoolean(valStr));
-            default -> null;
-        };
+        DAPValue dapValue = adapter.getDAPValue((Long) getId(), field.getName());
+        return adapter.getUSEValue(dapValue);
     }
 
 }

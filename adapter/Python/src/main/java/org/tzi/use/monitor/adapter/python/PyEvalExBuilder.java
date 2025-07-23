@@ -104,4 +104,11 @@ public class PyEvalExBuilder {
         );
     }
 
+    public static String getDAPValue(Long objectId, String fieldName) {
+        return String.format("(next(o for o in __import__('gc').get_objects() if id(o) == %s)).%s",
+                objectId,
+                fieldName
+        );
+    }
+
 }

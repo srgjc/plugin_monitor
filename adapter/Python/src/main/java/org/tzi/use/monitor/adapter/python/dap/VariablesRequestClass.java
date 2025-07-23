@@ -10,11 +10,12 @@ import com.fasterxml.jackson.annotation.*;
  * Retrieves all child variables for the given variable reference.
  * A filter can be used to limit the fetched children to either named or indexed children.
  */
-public class VariablesRequestClass {
+@JsonInclude(JsonInclude.Include.NON_NULL)
+public class VariablesRequestClass implements DAPRequest {
     private long seq;
-    private AttachRequestType type;
+    private String type = "request";
     private VariablesRequestArguments arguments;
-    private VariablesRequestCommand command;
+    private String command = "variables";
 
     /**
      * Sequence number of the message (also known as message ID). The `seq` for the first
@@ -33,9 +34,9 @@ public class VariablesRequestClass {
      * Message type.
      */
     @JsonProperty("type")
-    public AttachRequestType getType() { return type; }
+    public String getType() { return type; }
     @JsonProperty("type")
-    public void setType(AttachRequestType value) { this.type = value; }
+    public void setType(String value) { this.type = value; }
 
     /**
      * Object containing arguments for the command.
@@ -49,7 +50,7 @@ public class VariablesRequestClass {
      * The command to execute.
      */
     @JsonProperty("command")
-    public VariablesRequestCommand getCommand() { return command; }
+    public String getCommand() { return command; }
     @JsonProperty("command")
-    public void setCommand(VariablesRequestCommand value) { this.command = value; }
+    public void setCommand(String value) { this.command = value; }
 }

@@ -3,6 +3,7 @@ package org.tzi.use.monitor.adapter.python;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.tzi.use.monitor.adapter.python.custom.DAPValue;
 import org.tzi.use.monitor.adapter.python.dap.*;
 import org.tzi.use.monitor.adapter.python.dap.Thread;
 import org.tzi.use.monitor.plugins.monitor.vm.mm.python.*;
@@ -110,6 +111,7 @@ public class DebugpyClient {
             case "str" -> new PyTypeRaw("str");
             case "int" -> new PyTypeRaw("int");
             case "bool" -> new PyTypeRaw("bool");
+            case "List[int]" -> new PyTypeRaw("List[int]");
             default -> null;
         };
 
@@ -129,6 +131,9 @@ public class DebugpyClient {
         evalReq.setSeq(REQUEST_COUNTER++);
         evalReq.setArguments(evalArgs);
         var evalResp = (EvaluateResponseClass) sendRequest(evalReq);
+
+
+        // TODO use variables call instead
 
         var classMappings = parsePythonTypeString(evalResp.getBody().getResult());
         PyTypeRaw rawType = new PyTypeRaw(qualifiedClassName);
@@ -198,6 +203,18 @@ public class DebugpyClient {
         return rawType;
     }
 
+    protected DAPValue getDAPValue(Long objectId, String fName) {
+        var evalArgs = new EvaluateRequestArguments();
+        evalArgs.setExpression(PyEvalExBuilder.getDAPValue(objectId, fName));
+        evalArgs.setFrameID(getCurrentFrame(getThreadId("MainThread")).getID());
+        evalArgs.setContext("watch");
+        var evalReq = new EvaluateRequestClass();
+        evalReq.setSeq(REQUEST_COUNTER++);
+        evalReq.setArguments(evalArgs);
+        var evalResp = (EvaluateResponseClass) sendRequest(evalReq);
+        return new DAPValue(evalResp.getBody().getResult(), evalResp.getBody().getType(), evalResp.getBody().getVariablesReference());
+    }
+
     protected Map<String, String> getRuntimeInstanceVars(long frameId) {
         var evalArgs = new EvaluateRequestArguments();
         evalArgs.setExpression("self.__dict__");
@@ -264,17 +281,19 @@ public class DebugpyClient {
     public Map<String, String> parsePythonTypeString(String input) {
         Map<String, String> result = new HashMap<>();
 
-        String cleaned = input
-                .replace("'", "\"")
-                .replaceAll("<class\\s+\"(.*?)\">", "\"$1\"")
-                .replaceAll("<class\\s+'(.*?)'>", "\"$1\"");
-
-        Matcher matcher = TYPE_CLASS_PATTERN.matcher(cleaned);
+        Pattern pattern = Pattern.compile(
+                "'(.*?)'\\s*:\\s*(<class\\s+['\"](.*?)['\"]>|typing\\.[\\w\\[\\], ]+|\".*?\"|'.*?'|\\w+)"
+        );
+        Matcher matcher = pattern.matcher(input);
 
         while (matcher.find()) {
-            String variable = matcher.group(1);
-            String type = matcher.group(2);
-            result.put(variable, type);
+            String key = matcher.group(1);
+            String fullValue = matcher.group(2);
+
+            String innerType = matcher.group(3);
+            String value = (innerType != null) ? innerType : fullValue;
+
+            result.put(key, value);
         }
 
         return result;
@@ -400,42 +419,35 @@ public class DebugpyClient {
         var evalArgs = new EvaluateRequestArguments();
         evalArgs.setContext("watch");
         evalArgs.setFrameID((long) getCurrentFrameId(getThreadId("MainThread")));
-        evalArgs.setExpression(PyEvalExBuilder.getInstanceExp(pyType.getName()));
+        evalArgs.setExpression(PyEvalExBuilder.getInstanceId(pyType.getName()));
         var evalReq = new EvaluateRequestClass();
         evalReq.setSeq(REQUEST_COUNTER++);
         evalReq.setArguments(evalArgs);
         var evalResp = (EvaluateResponseClass) sendRequest(evalReq);
 
-        // TODO: Use variables reference instead...
-        var res = evalResp.getBody().getResult();
-        if (res.equals("None")) {
+        if (evalResp.getBody().getResult().equals("None")) {
             return null;
         }
-        String json = res.replace('\'', '"');
-        Map<String, Object> rawMap;
-        try {
-            rawMap = mapper.readValue(stringifyJsonEntries(json), Map.class);
-        } catch (JsonProcessingException e) {
-            throw new RuntimeException(e);
-        }
-        Map<String, String> result = new HashMap<>();
-        for (Map.Entry<String, Object> entry : rawMap.entrySet()) {
-            result.put(entry.getKey(), entry.getValue().toString());
-        }
-
-        // Set instance ID
-        evalArgs.setExpression(PyEvalExBuilder.getInstanceId(pyType.getName()));
-        evalReq.setSeq(REQUEST_COUNTER++);
-        evalResp = (EvaluateResponseClass) sendRequest(evalReq);
 
         PyObjectRaw pyObjectRaw = new PyObjectRaw(Long.parseLong(evalResp.getBody().getResult()));
         pyObjectRaw.setRawType(pyType.getRawType());
         for (PyFieldRaw rawField : pyObjectRaw.getRawType().getFields()) {
-            System.out.println("Setting value '" + result.get(rawField.getName()) + "' to field '" + rawField.getName());
-            rawField.setValue(result.get(rawField.getName()));
+            // TODO check variables reference
+            DAPValue dapValue = getDAPValue(pyObjectRaw.getId(), rawField.getName());
+            System.out.println("Setting value '" + dapValue.getResult() + "' to field '" + rawField.getName());
+            rawField.setValue(dapValue.getResult());
         }
-
         return pyObjectRaw;
+    }
+
+    public Variable[] getDAPChildren(long variablesReference) {
+        var varArgs = new VariablesRequestArguments();
+        varArgs.setVariablesReference(variablesReference);
+        var varReq = new VariablesRequestClass();
+        varReq.setSeq(REQUEST_COUNTER++);
+        varReq.setArguments(varArgs);
+        var varResp = (VariablesResponseClass) sendRequest(varReq);
+        return varResp.getBody().getVariables();
     }
 
     private String stringifyJsonEntries(String json) {

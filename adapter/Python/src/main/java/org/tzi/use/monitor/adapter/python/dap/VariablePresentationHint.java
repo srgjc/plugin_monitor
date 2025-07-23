@@ -11,6 +11,7 @@ import com.fasterxml.jackson.annotation.*;
  *
  * Properties of a value that can be used to determine how to render the result in the UI.
  */
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class VariablePresentationHint {
     private String[] attributes;
     private String kind;
