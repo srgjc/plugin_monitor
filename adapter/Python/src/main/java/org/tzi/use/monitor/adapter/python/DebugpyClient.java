@@ -111,7 +111,8 @@ public class DebugpyClient {
             case "str" -> new PyTypeRaw("str");
             case "int" -> new PyTypeRaw("int");
             case "bool" -> new PyTypeRaw("bool");
-            case "List[int]" -> new PyTypeRaw("List[int]");
+            case "List" -> new PyTypeRaw("List");
+            case "Tuple" -> new PyTypeRaw("Tuple");
             default -> null;
         };
 

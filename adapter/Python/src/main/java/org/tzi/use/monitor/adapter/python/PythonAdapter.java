@@ -8,6 +8,8 @@ import org.tzi.use.plugins.monitor.vm.adapter.AbstractVMAdapter;
 import org.tzi.use.plugins.monitor.vm.adapter.InvalidAdapterConfiguration;
 import org.tzi.use.plugins.monitor.vm.adapter.VMAdapterSetting;
 import org.tzi.use.plugins.monitor.vm.mm.*;
+import org.tzi.use.uml.ocl.type.TupleType;
+import org.tzi.use.uml.ocl.type.Type;
 import org.tzi.use.uml.ocl.type.TypeFactory;
 import org.tzi.use.uml.ocl.value.*;
 
@@ -154,10 +156,10 @@ public class PythonAdapter extends AbstractVMAdapter {
             case "str" -> new StringValue(dapValue.getResult());
             case "list"-> {
                 List<DAPValue> allChildren = fetchChildren(dapValue.getVariablesReference());
-                // Filter only numeric-named entries (actual list indices)
+
                 List<DAPValue> items = allChildren.stream()
-                        .filter(child -> child.getName().matches("\\d+"))  // only "0", "1", etc.
-                        .sorted(Comparator.comparingInt(child -> Integer.parseInt(child.getName()))) // ensure correct order
+                        .filter(child -> child.getName().matches("\\d+"))
+                        .sorted(Comparator.comparingInt(child -> Integer.parseInt(child.getName())))
                         .toList();
 
                 Value[] sequence = new Value[items.size()];
@@ -165,6 +167,31 @@ public class PythonAdapter extends AbstractVMAdapter {
                     sequence[i] = getUSEValue(items.get(i));
                 }
                 yield new SequenceValue(TypeFactory.mkVoidType(), sequence);
+            }
+            case "tuple" -> {
+                List<DAPValue> allChildren = fetchChildren(dapValue.getVariablesReference());
+
+                List<DAPValue> items = allChildren.stream()
+                        .filter(child -> child.getName().matches("\\d+"))
+                        .sorted(Comparator.comparingInt(child -> Integer.parseInt(child.getName())))
+                        .toList();
+
+                TupleType.Part[] typeParts = new TupleType.Part[items.size()];
+                List<TupleValue.Part> valueParts = new ArrayList<>();
+
+                for (int i = 0; i < items.size(); i++) {
+                    DAPValue item = items.get(i);
+                    String name = "item" + i;
+
+                    Value value = getUSEValue(item);
+                    Type type = value.type();
+
+                    typeParts[i] = new TupleType.Part(i, name, type);
+                    valueParts.add(new TupleValue.Part(i, name, value));
+                }
+
+                TupleType tupleType = TypeFactory.mkTuple(typeParts);
+                yield new TupleValue(tupleType, valueParts);
             }
             default -> UndefinedValue.instance;
         };
