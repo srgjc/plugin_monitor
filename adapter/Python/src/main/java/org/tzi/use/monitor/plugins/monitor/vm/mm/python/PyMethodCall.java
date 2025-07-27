@@ -13,16 +13,18 @@ public class PyMethodCall extends PyBase implements VMMethodCall {
 
     private final PyMethod pyMethod;
     private final PyObject pyObject;
+    private final List<Value> argVals;
 
-    public PyMethodCall(PythonAdapter adapter, PyMethod pyMethod, PyObject pyObject) {
+    public PyMethodCall(PythonAdapter adapter, PyMethod pyMethod, PyObject pyObject, List<Value> argVals) {
         super(adapter);
         this.pyMethod = pyMethod;
         this.pyObject = pyObject;
+        this.argVals = argVals;
     }
 
     @Override
     public List<Value> getArgumentValues() throws VMAccessException {
-        return List.of();
+        return argVals;
     }
 
     @Override
@@ -37,7 +39,16 @@ public class PyMethodCall extends PyBase implements VMMethodCall {
 
     @Override
     public int getNumArguments() throws VMAccessException {
-        return this.pyMethod.getArgumentTypes().size();
+        return pyMethod.getArgumentTypes().size();
+    }
+
+    @Override
+    public String toString() {
+        return "PyMethodCall{" +
+                "pyMethod=" + pyMethod +
+                ", pyObject=" + pyObject +
+                ", argVals=" + argVals +
+                '}';
     }
 
 }

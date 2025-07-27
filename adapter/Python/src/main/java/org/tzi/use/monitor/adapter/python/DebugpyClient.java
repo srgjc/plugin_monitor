@@ -158,10 +158,13 @@ public class DebugpyClient {
             mRaw.setClassName(qualifiedClassName);
             // Set arg type names
             List<String> argTypeNames = new LinkedList<>();
+            List<String> argNames = new ArrayList<>();
             for (Map.Entry<String, String> mArg : mSigs.get(mName).entrySet()) {
-               argTypeNames.add(mArg.getValue());
+                argNames.add(mArg.getKey());
+                argTypeNames.add(mArg.getValue());
             }
             mRaw.setArgumentTypeNames(argTypeNames);
+            mRaw.setArgumentNames(argNames);
             // Set line nos and filename
             evalArgs.setExpression(PyEvalExBuilder.getMethodBreakpointInfo(qualifiedClassName, mName));
             evalReq.setSeq(REQUEST_COUNTER++);
@@ -480,6 +483,18 @@ public class DebugpyClient {
         evalReq.setArguments(evalArgs);
         var evalResp = (EvaluateResponseClass) sendRequest(evalReq);
         return Long.parseLong(evalResp.getBody().getResult());
+    }
+
+    protected DAPValue getMethodArgDAPValue(long frameId, String argName){
+        var evalArgs = new EvaluateRequestArguments();
+        evalArgs.setFrameID(frameId);
+        evalArgs.setContext("watch");
+        evalArgs.setExpression(argName);
+        var evalReq = new EvaluateRequestClass();
+        evalReq.setSeq(REQUEST_COUNTER++);
+        evalReq.setArguments(evalArgs);
+        var evalResp = (EvaluateResponseClass) sendRequest(evalReq);
+        return new DAPValue(evalResp.getBody().getResult(), evalResp.getBody().getType(), evalResp.getBody().getVariablesReference());
     }
 
     private DAPResponse sendRequest(DAPRequest dapRequest) {
