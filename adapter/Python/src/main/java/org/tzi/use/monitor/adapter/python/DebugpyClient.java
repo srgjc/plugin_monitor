@@ -110,6 +110,7 @@ public class DebugpyClient {
         var t = switch (qualifiedClassName) {
             case "str" -> new PyTypeRaw("str");
             case "int" -> new PyTypeRaw("int");
+            case "float" -> new PyTypeRaw("float");
             case "bool" -> new PyTypeRaw("bool");
             case "List" -> new PyTypeRaw("List");
             case "Tuple" -> new PyTypeRaw("Tuple");

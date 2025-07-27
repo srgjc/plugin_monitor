@@ -152,6 +152,7 @@ public class PythonAdapter extends AbstractVMAdapter {
 
         return switch (dapValue.getType()) {
             case "int" -> IntegerValue.valueOf(Integer.parseInt(dapValue.getResult()));
+            case "float" -> new RealValue(Double.parseDouble(dapValue.getResult()));
             case "bool" -> BooleanValue.get(Boolean.parseBoolean(dapValue.getResult()));
             case "str" -> new StringValue(dapValue.getResult());
             case "list"-> {
