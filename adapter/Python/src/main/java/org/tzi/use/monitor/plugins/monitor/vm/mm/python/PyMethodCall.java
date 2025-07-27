@@ -12,10 +12,12 @@ import java.util.List;
 public class PyMethodCall extends PyBase implements VMMethodCall {
 
     private final PyMethod pyMethod;
+    private final PyObject pyObject;
 
-    public PyMethodCall(PythonAdapter adapter, PyMethod pyMethod) {
+    public PyMethodCall(PythonAdapter adapter, PyMethod pyMethod, PyObject pyObject) {
         super(adapter);
         this.pyMethod = pyMethod;
+        this.pyObject = pyObject;
     }
 
     @Override
@@ -30,7 +32,7 @@ public class PyMethodCall extends PyBase implements VMMethodCall {
 
     @Override
     public VMObject getThisObject() throws VMAccessException {
-        return null;
+        return pyObject;
     }
 
     @Override

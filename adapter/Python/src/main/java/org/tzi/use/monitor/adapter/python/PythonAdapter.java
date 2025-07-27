@@ -349,7 +349,11 @@ public class PythonAdapter extends AbstractVMAdapter {
         PyType pyType = typeMapping.get(fullyQualifiedClassName);
         PyMethod internalPyMethod = (PyMethod) pyType.getMethodsByName(stackFrame.getName()).getFirst();
         PyMethod upToDatePyMethod = (PyMethod) controller.getVMMethod(internalPyMethod.getId());
-        PyMethodCall pyMethodCall = new PyMethodCall(this, upToDatePyMethod);
+
+        Long pyObjId = debugpyClient.getSelfId(stackFrame.getID());
+        PyObject pyObject = (PyObject) controller.getVMObject(pyObjId);
+
+        PyMethodCall pyMethodCall = new PyMethodCall(this, upToDatePyMethod, pyObject);
 
         controller.onMethodCall(pyMethodCall);
     }
