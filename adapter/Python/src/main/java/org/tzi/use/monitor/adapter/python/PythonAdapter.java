@@ -347,19 +347,19 @@ public class PythonAdapter extends AbstractVMAdapter {
         controller.newLogMessage(this, Level.FINE, String.format("onMethodCall: %s.%s", fullyQualifiedClassName, stackFrame.getName()));
 
         PyType pyType = typeMapping.get(fullyQualifiedClassName);
-        PyMethod internalPyMethod = (PyMethod) pyType.getMethodsByName(stackFrame.getName()).getFirst();
-        PyMethod upToDatePyMethod = (PyMethod) controller.getVMMethod(internalPyMethod.getId());
+        String methodId = (String) pyType.getMethodsByName(stackFrame.getName()).getFirst().getId();
+        PyMethod pyMethod = (PyMethod) controller.getVMMethod(methodId);
 
         Long pyObjId = debugpyClient.getSelfId(stackFrame.getID());
         PyObject pyObject = (PyObject) controller.getVMObject(pyObjId);
 
         List<Value> argValues = new ArrayList<>();
-        for (String argName : upToDatePyMethod.getMethod().getArgumentNames()) {
+        for (String argName : pyMethod.getMethod().getArgumentNames()) {
             DAPValue argDAPValue = debugpyClient.getMethodArgDAPValue(stackFrame.getID(), argName);
             argValues.add(getUSEValue(argDAPValue));
         }
 
-        PyMethodCall pyMethodCall = new PyMethodCall(this, upToDatePyMethod, pyObject, argValues);
+        PyMethodCall pyMethodCall = new PyMethodCall(this, pyMethod, pyObject, argValues);
 
         controller.onMethodCall(pyMethodCall);
     }
