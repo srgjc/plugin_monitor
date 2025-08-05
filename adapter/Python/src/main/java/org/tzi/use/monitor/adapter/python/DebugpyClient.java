@@ -114,6 +114,7 @@ public class DebugpyClient {
             case "bool" -> new PyTypeRaw("bool");
             case "List" -> new PyTypeRaw("List");
             case "Tuple" -> new PyTypeRaw("Tuple");
+            case "Set" -> new PyTypeRaw("Set");
             case "Any" -> new PyTypeRaw("Any");
             default -> null;
         };

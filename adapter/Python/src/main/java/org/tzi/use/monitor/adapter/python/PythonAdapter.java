@@ -198,6 +198,24 @@ public class PythonAdapter extends AbstractVMAdapter {
                 TupleType tupleType = TypeFactory.mkTuple(typeParts);
                 yield new TupleValue(tupleType, valueParts);
             }
+
+            case "set" -> {
+                List<DAPValue> allChildren = fetchChildren(dapValue.getVariablesReference());
+
+                var items = allChildren.stream()
+                        .filter(child -> child.getName().matches("\\d+"))
+                        .toList();
+
+                List<Value> useValues = new ArrayList<>();
+
+                for (DAPValue item : items) {
+                    Value v = getUSEValue(item);
+                    useValues.add(v);
+                }
+
+                yield new SetValue(TypeFactory.mkVoidType(), useValues);
+            }
+
             default -> {
                 // Object
                 if (dapValue.getResult().contains("object")) {
