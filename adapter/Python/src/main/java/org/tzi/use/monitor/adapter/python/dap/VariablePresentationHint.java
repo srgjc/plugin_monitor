@@ -2,6 +2,8 @@ package org.tzi.use.monitor.adapter.python.dap;
 
 import com.fasterxml.jackson.annotation.*;
 
+import java.util.Arrays;
+
 /**
  * Properties of an evaluate result that can be used to determine how to render the result
  * in the UI.
@@ -58,4 +60,15 @@ public class VariablePresentationHint {
     public String getVisibility() { return visibility; }
     @JsonProperty("visibility")
     public void setVisibility(String value) { this.visibility = value; }
+
+    @Override
+    public String toString() {
+        return "VariablePresentationHint{" +
+                "attributes=" + Arrays.toString(attributes) +
+                ", kind='" + kind + '\'' +
+                ", lazy=" + lazy +
+                ", visibility='" + visibility + '\'' +
+                '}';
+    }
 }
+

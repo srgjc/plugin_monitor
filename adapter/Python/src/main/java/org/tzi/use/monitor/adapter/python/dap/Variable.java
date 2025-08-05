@@ -117,4 +117,19 @@ public class Variable {
     public long getVariablesReference() { return variablesReference; }
     @JsonProperty("variablesReference")
     public void setVariablesReference(long value) { this.variablesReference = value; }
+
+    @Override
+    public String toString() {
+        return "Variable{" +
+                "evaluateName='" + evaluateName + '\'' +
+                ", indexedVariables=" + indexedVariables +
+                ", memoryReference='" + memoryReference + '\'' +
+                ", name='" + name + '\'' +
+                ", namedVariables=" + namedVariables +
+                ", presentationHint=" + presentationHint +
+                ", type='" + type + '\'' +
+                ", value='" + value + '\'' +
+                ", variablesReference=" + variablesReference +
+                '}';
+    }
 }

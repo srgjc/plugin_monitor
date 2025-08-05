@@ -11,6 +11,7 @@ public class PyField extends PyBase implements VMField {
     private final String className;
 
     private MAttribute useAttribute;
+    private MAssociationEnd useAssociationEnd;
 
     public PyField(PythonAdapter adapter, PyFieldRaw pyFieldRaw, String className) {
         super(adapter);
@@ -35,12 +36,12 @@ public class PyField extends PyBase implements VMField {
 
     @Override
     public void setUSEAssociationEnd(MAssociationEnd end) {
-
+        useAssociationEnd = end;
     }
 
     @Override
     public MAssociationEnd getUSEAssociationEnd() {
-        return null;
+        return useAssociationEnd;
     }
 
     @Override

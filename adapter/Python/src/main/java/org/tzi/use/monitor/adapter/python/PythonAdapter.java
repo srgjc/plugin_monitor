@@ -16,6 +16,8 @@ import org.tzi.use.uml.ocl.value.*;
 import java.lang.Thread;
 import java.util.*;
 import java.util.logging.Level;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * @author Sergio Jimenez
@@ -25,6 +27,8 @@ public class PythonAdapter extends AbstractVMAdapter {
     private static final int SETTING_HOST_IDX = 0;
     private static final int SETTING_PORT_IDX = 1;
     private static final int SETTING_WORKSPACE_IDX = 2;
+
+    private static final Pattern MEMORY_ADDR_PATTERN = Pattern.compile("0x[0-9a-fA-F]+");
 
     private String host;
     private int port;
@@ -194,9 +198,32 @@ public class PythonAdapter extends AbstractVMAdapter {
                 TupleType tupleType = TypeFactory.mkTuple(typeParts);
                 yield new TupleValue(tupleType, valueParts);
             }
-            default -> UndefinedValue.instance;
+            default -> {
+                // Object
+                if (dapValue.getResult().contains("object")) {
+                    long objId = extractHexAndConvertToDecimal(dapValue.getResult());
+                    if (controller.existsVMObject(objId)) {
+                        System.out.println("Found obj for USE value with id: " + objId);
+                        VMObject obj = controller.getVMObject(objId);
+                        yield new ObjectValue(obj.getUSEObject().cls(), obj.getUSEObject());
+                    }
+                }
+                // Unknown
+                System.out.println("Unknown case for dapValue type: " + dapValue.getType());
+                yield UndefinedValue.instance;
+            }
         };
     }
+
+    private long extractHexAndConvertToDecimal(String input) {
+        Matcher matcher = MEMORY_ADDR_PATTERN.matcher(input);
+        if (matcher.find()) {
+            String hexString = matcher.group();
+            return Long.parseLong(hexString.substring(2), 16);
+        }
+        return 0;
+    }
+
 
     private List<DAPValue> fetchChildren(long variablesReference) {
         List<DAPValue> res = new ArrayList<>();
