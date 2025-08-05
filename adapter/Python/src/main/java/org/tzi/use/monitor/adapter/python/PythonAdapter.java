@@ -139,6 +139,7 @@ public class PythonAdapter extends AbstractVMAdapter {
             typeMapping.put(name, res);
         }
         System.out.println("Got VMType '" + name + "'..." + res);
+        controller.storeVMType(name, typeMapping.get(name));
         return typeMapping.get(name);
     }
 
@@ -371,7 +372,29 @@ public class PythonAdapter extends AbstractVMAdapter {
 
     @Override
     public void registerFieldModificationInterest(VMField f) {
+        String[] fId = ((String) f.getId()).split(":");
+        VMType vmType = controller.getVMType(fId[0]);
 
+        List<VMMethod> methods= vmType.getMethodsByName("set_" + fId[1]);
+
+        if (methods.isEmpty()) {
+            controller.newLogMessage(this, Level.WARNING, "Setter for field " + f.getId() + " not found! Will not set field modification breakpoint.");
+            return;
+        }
+
+        PyMethodRaw mr = ((PyMethod) methods.get(0)).getMethod();
+        String file = mr.getFile();
+        int startLine = mr.getStartLineNo();
+        if (!breakpoints.containsKey(file)) {
+            Map<Integer, BreakpointType> breakpointTypeMap = new HashMap<>();
+            breakpointTypeMap.put(startLine, BreakpointType.MODIFICATION);
+            breakpoints.put(file, breakpointTypeMap);
+        } else {
+            Map<Integer, BreakpointType> currBps = breakpoints.get(file);
+            currBps.put(startLine, BreakpointType.MODIFICATION);
+        }
+        debugpyClient.setBreakpoints(file, breakpoints.get(file).keySet());
+        System.out.println("BREAKPOINT_MAP: " + breakpoints);
     }
 
     private class BreakpointWatcher implements Runnable {
@@ -460,9 +483,23 @@ public class PythonAdapter extends AbstractVMAdapter {
 
     private void handleAttributeModification(StackFrame stackFrame, String qualifiedClassName) {
         controller.newLogMessage(this, Level.FINE, "onAttributeModification: " + qualifiedClassName + "." + stackFrame.getName());
-        // update class instance variables from __dict__
-        // get object id from current frame
-        // get field name from method name
+
+        Long pyObjId = debugpyClient.getSelfId(stackFrame.getID());
+        PyObject pyObject = (PyObject) controller.getVMObject(pyObjId);
+
+        PyField pyField = (PyField) pyObject.getType().getFieldByName(stackFrame.getName().replace("set_", ""));
+
+        String methodId = (String) pyObject.getType().getMethodsByName(stackFrame.getName()).getFirst().getId();
+        PyMethod m = (PyMethod) controller.getVMMethod(methodId);
+
+        // TODO FIX assert only one arg
+        List<Value> argValues = new ArrayList<>();
+        for (String argName : m.getMethod().getArgumentNames()) {
+            DAPValue argDAPValue = debugpyClient.getMethodArgDAPValue(stackFrame.getID(), argName);
+            argValues.add(getUSEValue(argDAPValue));
+        }
+
+        controller.onUpdateAttribute(pyObjId, pyField.getId(), argValues.get(0));
     }
 
     @Override
