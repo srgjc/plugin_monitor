@@ -198,7 +198,48 @@ public class PythonAdapter extends AbstractVMAdapter {
                 TupleType tupleType = TypeFactory.mkTuple(typeParts);
                 yield new TupleValue(tupleType, valueParts);
             }
+            // TODO FIXME: custom debugpy call for type resolution of keys and values separately needed
+            case "dict" -> {
+                List<DAPValue> dictEntries = fetchChildren(dapValue.getVariablesReference());
 
+                TupleType.Part[] p = new TupleType.Part[] {
+                        new TupleType.Part(0, "key", TypeFactory.mkVoidType()),
+                        new TupleType.Part(1, "value", TypeFactory.mkVoidType())
+                };
+                TupleType tupleType = TypeFactory.mkTuple(p);
+
+                List<Value> tupleValues = new ArrayList<>();
+
+                for (DAPValue entry : dictEntries) {
+                    if (entry.getVariablesReference() == 0) continue; // skip non-expandable entries
+
+                    List<DAPValue> keyValueChildren = fetchChildren(entry.getVariablesReference());
+
+                    DAPValue keyDap = keyValueChildren.stream()
+                            .filter(child -> "key".equals(child.getName()))
+                            .findFirst()
+                            .orElse(null);
+
+                    DAPValue valueDap = keyValueChildren.stream()
+                            .filter(child -> "value".equals(child.getName()))
+                            .findFirst()
+                            .orElse(null);
+
+                    if (keyDap != null && valueDap != null) {
+                        Value useKey = getUSEValue(keyDap);
+                        Value useValue = getUSEValue(valueDap);
+
+                        List<TupleValue.Part> parts = List.of(
+                                new TupleValue.Part(0, "key", useKey),
+                                new TupleValue.Part(1, "value", useValue)
+                        );
+
+                        tupleValues.add(new TupleValue(tupleType, parts));
+                    }
+                }
+
+                yield new SetValue(TypeFactory.mkVoidType(), tupleValues);
+            }
             case "set" -> {
                 List<DAPValue> allChildren = fetchChildren(dapValue.getVariablesReference());
 
