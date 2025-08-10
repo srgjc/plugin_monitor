@@ -7,8 +7,8 @@ import org.tzi.use.plugins.monitor.vm.mm.VMObject;
 import org.tzi.use.plugins.monitor.vm.mm.VMType;
 import org.tzi.use.uml.mm.MClass;
 
-import java.util.LinkedList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 public class PyType extends PyBase implements VMType {
@@ -52,14 +52,10 @@ public class PyType extends PyBase implements VMType {
 
     @Override
     public List<VMMethod> getMethodsByName(String methodName) {
-        List<PyMethodRaw> pyMethodsRaw = rawType.getMethods().stream()
+        Optional<PyMethodRaw> methodOpt = rawType.getMethods().stream()
                 .filter(m -> m.getName().equals(methodName))
-                .toList();
-        List<VMMethod> pyMethods = new LinkedList<>();
-        for (PyMethodRaw rawMethod : pyMethodsRaw) {
-            pyMethods.add(new PyMethod(getAdapter(), rawMethod));
-        }
-        return pyMethods;
+                .findAny();
+        return methodOpt.<List<VMMethod>>map(pyMethodRaw -> List.of(new PyMethod(getAdapter(), pyMethodRaw))).orElseGet(List::of);
     }
 
     @Override
