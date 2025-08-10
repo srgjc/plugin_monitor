@@ -21,7 +21,6 @@ import java.util.regex.Pattern;
  * @author Sergio Jimenez
  */
 public class DebugpyClient {
-    private static final String WORKSPACE = "/Users/serj/git/uni/dpy-server";
     private static final Pattern SIGNATURE_PATTERN = Pattern.compile("^(\\w+)\\((.*?)\\)\\s*->\\s*.*$");
     private static final Pattern TYPE_CLASS_PATTERN = Pattern.compile("\"(\\w+)\":\\s*\"(\\w+)\"");
     private static final Pattern JSON_STRINGIFY_PATTERN = Pattern.compile("(:\\s*)([^\"{},\\s][^,}]*)");
@@ -37,15 +36,21 @@ public class DebugpyClient {
     private CompletableFuture<DAPEvent> stoppedEvent;
     protected boolean running = false;
     protected final BlockingQueue<DAPEvent> eventQueue = new LinkedBlockingQueue<>();
+    private final String workspace;
+    private final String host;
+    private final int port;
 
-    DebugpyClient(String host, int port) throws IOException {
+    DebugpyClient(String host, int port, String workspace) throws IOException {
         this.socket = new Socket(host, port);
         this.in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
         this.out = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
+        this.workspace = workspace;
+        this.host = host;
+        this.port = port;
         startReaderThread();
     }
 
-    boolean attach(String host, int port) {
+    boolean attach() {
         initEvent = new CompletableFuture<>();
 
         // Initialize
@@ -62,12 +67,13 @@ public class DebugpyClient {
         // Attach
         var attachArgs = new AttachRequestArgumentsClass();
         attachArgs.setConnect(Map.of("host", host, "port", port));
-        attachArgs.setPathMappings(List.of(Map.of("localRoot", WORKSPACE, "remoteRoot", ".")));
+        attachArgs.setPathMappings(List.of(Map.of("localRoot", workspace, "remoteRoot", ".")));
+        // FIXME: Dynamic OS resolution with debugpy expected values
         attachArgs.setClientOs("unix");
         attachArgs.setDebugOptions(List.of("RedirectOutput", "ShowReturnValue"));
         attachArgs.setShowReturnValue(true);
         attachArgs.setJustMyCode(true);
-        attachArgs.setWorkspaceFolder(WORKSPACE);
+        attachArgs.setWorkspaceFolder(workspace);
         attachArgs.setSessionId(UUID.randomUUID().toString());
         var attachReq = new AttachRequestClass();
         attachReq.setArguments(attachArgs);

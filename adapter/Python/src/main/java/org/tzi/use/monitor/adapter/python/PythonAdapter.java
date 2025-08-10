@@ -14,6 +14,8 @@ import org.tzi.use.uml.ocl.type.TypeFactory;
 import org.tzi.use.uml.ocl.value.*;
 
 import java.lang.Thread;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.*;
 import java.util.logging.Level;
 import java.util.regex.Matcher;
@@ -32,6 +34,7 @@ public class PythonAdapter extends AbstractVMAdapter {
 
     private String host;
     private int port;
+    private String workspace;
     private boolean isConnected;
     private DebugpyClient debugpyClient;
     public Map<String, PyType> typeMapping;
@@ -67,6 +70,19 @@ public class PythonAdapter extends AbstractVMAdapter {
         } catch (NumberFormatException e) {
             throw new InvalidAdapterConfiguration("Port must be a number!");
         }
+
+        String settingWorkspace = settings.get(SETTING_WORKSPACE_IDX).value;
+        try {
+            Path workspacePath = Path.of(settingWorkspace);
+            boolean isValidDir = Files.isDirectory(workspacePath);
+            if (isValidDir) {
+                workspace = workspacePath.toString();
+            } else {
+                throw new IllegalArgumentException();
+            }
+        } catch (Exception e) {
+            throw new InvalidAdapterConfiguration("Invalid directory!");
+        }
     }
 
     @Override
@@ -74,7 +90,7 @@ public class PythonAdapter extends AbstractVMAdapter {
         System.out.println("Creating Python adapter settings...");
         settings.add(SETTING_HOST_IDX, new VMAdapterSetting("Host", "localhost"));
         settings.add(SETTING_PORT_IDX, new VMAdapterSetting("Port", "5678"));
-        settings.add(SETTING_WORKSPACE_IDX, new VMAdapterSetting("Workspace", "/Users/serj/git/uni/dpy-server"));
+        settings.add(SETTING_WORKSPACE_IDX, new VMAdapterSetting("SUM root dir", ""));
     }
 
     @Override
@@ -86,14 +102,14 @@ public class PythonAdapter extends AbstractVMAdapter {
         fileToClassNameMap = new HashMap<>();
 
         try {
-            debugpyClient = new DebugpyClient(host, port);
+            debugpyClient = new DebugpyClient(host, port, workspace);
         } catch (Exception e) {
             throw new MonitorException("Failed to create socket!", e);
         }
 
         System.out.println("Debugpy socket created!");
 
-        if (debugpyClient.attach(host, port)) {
+        if (debugpyClient.attach()) {
             isConnected = true;
             breakpointWatcher = new Thread(new BreakpointWatcher(), "PythonAdapter breakpoint watcher");
             breakpointWatcher.start();
