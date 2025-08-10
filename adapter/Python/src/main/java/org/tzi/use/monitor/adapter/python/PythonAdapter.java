@@ -43,15 +43,12 @@ public class PythonAdapter extends AbstractVMAdapter {
     private Map<String, String> fileToClassNameMap;
 
     public Set<VMObject> readInstances(PyType type) {
-        var className = type.getName();
-        System.out.println("Reading instances of class: " + className);
-        PyObjectRaw pyObjectRaw = debugpyClient.getInstance(typeMapping.get(className));
-        if (pyObjectRaw == null) {
-            return Set.of();
+        PyType pyType = typeMapping.get(type.getName());
+        Set<VMObject> instances = new HashSet<>();
+        for (PyObjectRaw rawObj : debugpyClient.getInstances(pyType)) {
+            instances.add(new PyObject(this, rawObj, pyType));
         }
-        System.out.println("GotInstance OBJECT_ID: " + pyObjectRaw.getId());
-        PyObject pyObj = new PyObject(this, pyObjectRaw, typeMapping.get(className));
-        return Set.of(pyObj);
+        return instances;
     }
 
     @Override

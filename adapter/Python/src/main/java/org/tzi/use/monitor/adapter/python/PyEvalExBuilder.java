@@ -44,7 +44,7 @@ public class PyEvalExBuilder {
         return "id(self)";
     }
 
-    public static String getInstanceId(String qualifiedClassName) {
+    public static String getInstanceIds(String qualifiedClassName) {
         int lastDot = qualifiedClassName.lastIndexOf('.');
         if (lastDot == -1) {
             throw new IllegalArgumentException("Qualified class name must contain at least one dot.");
@@ -52,7 +52,7 @@ public class PyEvalExBuilder {
         String moduleName = qualifiedClassName.substring(0, lastDot);
         String className = qualifiedClassName.substring(lastDot + 1);
         return String.format(
-                "next((id(obj) for obj in __import__('gc').get_objects() if isinstance(obj, getattr(__import__('%s'), '%s'))), None)\n",
+                "[id(obj) for obj in __import__('gc').get_objects() if isinstance(obj, getattr(__import__('%s'), '%s'))]\n",
                 moduleName,
                 className
         );

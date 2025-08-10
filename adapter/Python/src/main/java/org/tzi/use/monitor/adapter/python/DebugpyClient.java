@@ -150,7 +150,7 @@ public class DebugpyClient {
         PyTypeRaw rawType = new PyTypeRaw(qualifiedClassName);
         List<PyFieldRaw> fields = new ArrayList<>();
         for (Map.Entry<String, String> entry : classMappings.entrySet()) {
-            fields.add(new PyFieldRaw(entry.getKey(), entry.getValue(), null));
+            fields.add(new PyFieldRaw(entry.getKey(), entry.getValue()));
         }
         rawType.setFields(fields);
 
@@ -427,31 +427,33 @@ public class DebugpyClient {
         return threadsResp.getBody().getThreads();
     }
 
-    protected PyObjectRaw getInstance(PyType pyType) {
+    protected Set<PyObjectRaw> getInstances(PyType pyType) {
         pause();
 
         var evalArgs = new EvaluateRequestArguments();
         evalArgs.setContext("watch");
         evalArgs.setFrameID((long) getCurrentFrameId(getThreadId("MainThread")));
-        evalArgs.setExpression(PyEvalExBuilder.getInstanceId(pyType.getName()));
+        evalArgs.setExpression(PyEvalExBuilder.getInstanceIds(pyType.getName()));
         var evalReq = new EvaluateRequestClass();
         evalReq.setSeq(REQUEST_COUNTER++);
         evalReq.setArguments(evalArgs);
         var evalResp = (EvaluateResponseClass) sendRequest(evalReq);
 
-        if (evalResp.getBody().getResult().equals("None")) {
-            return null;
+        Set<PyObjectRaw> rawObjs = new HashSet<>();
+
+        String result = evalResp.getBody().getResult();
+        if (result.equals("[]")) {
+            return rawObjs;
         }
 
-        PyObjectRaw pyObjectRaw = new PyObjectRaw(Long.parseLong(evalResp.getBody().getResult()));
-        pyObjectRaw.setRawType(pyType.getRawType());
-        for (PyFieldRaw rawField : pyObjectRaw.getRawType().getFields()) {
-            // TODO check variables reference
-            DAPValue dapValue = getDAPValue(pyObjectRaw.getId(), rawField.getName());
-            System.out.println("Setting value '" + dapValue.getResult() + "' to field '" + rawField.getName());
-            rawField.setValue(dapValue.getResult());
+        String[] objIds = result.substring(1, result.length() - 1).split(",");
+        for (String id : objIds) {
+            PyObjectRaw rawObj = new PyObjectRaw(Long.parseLong(id.trim()));
+            rawObj.setRawType(pyType.getRawType());
+            rawObjs.add(rawObj);
         }
-        return pyObjectRaw;
+
+        return rawObjs;
     }
 
     public Variable[] getDAPChildren(long variablesReference) {
