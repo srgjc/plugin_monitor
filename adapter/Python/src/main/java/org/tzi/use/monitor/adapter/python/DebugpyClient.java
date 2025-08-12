@@ -112,7 +112,7 @@ public class DebugpyClient {
     }
 
     PyTypeRaw getVMType(String qualifiedClassName) {
-        if (!qualifiedClassName.contains(".") || qualifiedClassName.equals("Mock")) {
+        if (!qualifiedClassName.contains(".")) {
             return new PyTypeRaw("Mock");
         }
 
@@ -149,13 +149,16 @@ public class DebugpyClient {
                 mRaw.setClassName(qualifiedClassName);
 
                 List<String> argNames = new ArrayList<>();
+                List<String> argTypes = new ArrayList<>();
                 for (String argName : sigParts[1].split(",")) {
                     if (argName.equals("self")) {
                         continue;
                     }
                     argNames.add(argName);
+                    argTypes.add("Mock");
                 }
                 mRaw.setArgumentNames(argNames);
+                mRaw.setArgumentTypeNames(argTypes);
 
                 // Set line nos and filename
                 evalArgs.setExpression(PyEvalExBuilder.getMethodBreakpointInfo(qualifiedClassName, mRaw.getName()));

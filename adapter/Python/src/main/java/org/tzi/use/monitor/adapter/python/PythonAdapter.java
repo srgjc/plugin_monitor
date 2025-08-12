@@ -349,6 +349,9 @@ public class PythonAdapter extends AbstractVMAdapter {
             debugpyClient.setBreakpoints(file, breakpoints.get(file).keySet());
         }
         System.out.println("BREAKPOINT_MAP: " + breakpoints);
+        if (m.getName().startsWith("set_")) {
+            registerFieldModificationInterest((PyMethod) m);
+        }
     }
 
     @Override
@@ -385,17 +388,10 @@ public class PythonAdapter extends AbstractVMAdapter {
 
     @Override
     public void registerFieldModificationInterest(VMField f) {
-        String[] fId = ((String) f.getId()).split(":");
-        VMType vmType = controller.getVMType(fId[0]);
+    }
 
-        List<VMMethod> methods= vmType.getMethodsByName("set_" + fId[1]);
-
-        if (methods.isEmpty()) {
-            controller.newLogMessage(this, Level.WARNING, "Setter for field " + f.getId() + " not found! Will not set field modification breakpoint.");
-            return;
-        }
-
-        PyMethodRaw mr = ((PyMethod) methods.get(0)).getMethod();
+    private void registerFieldModificationInterest(PyMethod m) {
+        PyMethodRaw mr = m.getMethod();
         String file = mr.getFile();
         int startLine = mr.getStartLineNo();
         if (!breakpoints.containsKey(file)) {
@@ -407,8 +403,8 @@ public class PythonAdapter extends AbstractVMAdapter {
             currBps.put(startLine, BreakpointType.MODIFICATION);
         }
         debugpyClient.setBreakpoints(file, breakpoints.get(file).keySet());
-        System.out.println("BREAKPOINT_MAP: " + breakpoints);
     }
+
 
     private class BreakpointWatcher implements Runnable {
 

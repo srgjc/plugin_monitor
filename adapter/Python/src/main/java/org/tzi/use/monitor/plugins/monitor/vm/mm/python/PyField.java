@@ -56,8 +56,11 @@ public class PyField extends PyBase implements VMField {
     @Override
     public String toString() {
         return "PyField{" +
-                "id=" + getId() +
-                ", pyFieldRaw=" + pyFieldRaw +
+                "pyFieldRaw=" + pyFieldRaw +
+                ", className='" + className + '\'' +
+                ", useAttribute=" + useAttribute +
+                ", useAssociationEnd=" + useAssociationEnd +
                 '}';
     }
+
 }
