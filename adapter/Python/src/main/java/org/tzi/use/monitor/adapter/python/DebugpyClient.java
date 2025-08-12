@@ -112,97 +112,79 @@ public class DebugpyClient {
     }
 
     PyTypeRaw getVMType(String qualifiedClassName) {
-        // TODO: Handle remaining build-in types
-        var t = switch (qualifiedClassName) {
-            case "str" -> new PyTypeRaw("str");
-            case "int" -> new PyTypeRaw("int");
-            case "float" -> new PyTypeRaw("float");
-            case "bool" -> new PyTypeRaw("bool");
-            case "List" -> new PyTypeRaw("List");
-            case "Tuple" -> new PyTypeRaw("Tuple");
-            case "Set" -> new PyTypeRaw("Set");
-            case "Dict" -> new PyTypeRaw("Dict");
-            case "Any" -> new PyTypeRaw("Any");
-            default -> null;
-        };
-
-        if (t != null) {
-            t.setPrimitive(true);
-            return t;
+        if (!qualifiedClassName.contains(".") || qualifiedClassName.equals("Mock")) {
+            return new PyTypeRaw("Mock");
         }
 
         pause();
 
-        // Set Fields
+        PyTypeRaw rawType = new PyTypeRaw(qualifiedClassName);
+
+        // Set Methods
         var evalArgs = new EvaluateRequestArguments();
         evalArgs.setContext("watch");
         evalArgs.setFrameID((long) getCurrentFrameId(getThreadId("MainThread")));
-        evalArgs.setExpression(PyEvalExBuilder.getClassFieldTypesExp(qualifiedClassName));
+        evalArgs.setExpression(PyEvalExBuilder.getMethodSignaturesExp(qualifiedClassName));
         var evalReq = new EvaluateRequestClass();
         evalReq.setSeq(REQUEST_COUNTER++);
         evalReq.setArguments(evalArgs);
         var evalResp = (EvaluateResponseClass) sendRequest(evalReq);
 
+        String result = evalResp.getBody().getResult();
 
-        // TODO use variables call instead
+        if (!result.equals("''")) {
+            List<PyMethodRaw> methods = new LinkedList<>();
 
-        var classMappings = parsePythonTypeString(evalResp.getBody().getResult());
-        PyTypeRaw rawType = new PyTypeRaw(qualifiedClassName);
-        List<PyFieldRaw> fields = new ArrayList<>();
-        for (Map.Entry<String, String> entry : classMappings.entrySet()) {
-            fields.add(new PyFieldRaw(entry.getKey(), entry.getValue()));
+            String escapedResult = result.substring(1, result.length() - 1);
+
+            String[] methodSigs = escapedResult.split(";");
+
+            for (String methodSig : methodSigs) {
+                PyMethodRaw mRaw = new PyMethodRaw();
+
+                String[] sigParts = methodSig.split(":");
+
+                mRaw.setName(sigParts[0]);
+
+                mRaw.setClassName(qualifiedClassName);
+
+                List<String> argNames = new ArrayList<>();
+                for (String argName : sigParts[1].split(",")) {
+                    if (argName.equals("self")) {
+                        continue;
+                    }
+                    argNames.add(argName);
+                }
+                mRaw.setArgumentNames(argNames);
+
+                // Set line nos and filename
+                evalArgs.setExpression(PyEvalExBuilder.getMethodBreakpointInfo(qualifiedClassName, mRaw.getName()));
+                evalReq.setSeq(REQUEST_COUNTER++);
+                evalResp = (EvaluateResponseClass) sendRequest(evalReq);
+
+                String json = evalResp.getBody().getResult().replace("'", "\"");
+                ObjectMapper mapper = new ObjectMapper();
+                JsonNode root;
+                try {
+                    root = mapper.readTree(json);
+                } catch (JsonProcessingException e) {
+                    return null;
+                }
+                String fileRaw = root.get("file").asText();
+                String normalizedFile = Paths.get(fileRaw).normalize().toString();
+                mRaw.setFile(normalizedFile);
+                mRaw.setStartLineNo(root.get("start").asInt());
+                mRaw.setEndLineNo(root.get("end").asInt());
+                List<Integer> returnLines = new ArrayList<>();
+                for (JsonNode r : root.get("returns")) {
+                    returnLines.add(r.asInt());
+                }
+                mRaw.setReturnLines(returnLines);
+
+                methods.add(mRaw);
+            }
+            rawType.setMethods(methods);
         }
-        rawType.setFields(fields);
-
-        // Set Methods
-        evalArgs.setExpression(PyEvalExBuilder.getMethodsExpVar(qualifiedClassName));
-        evalReq.setSeq(REQUEST_COUNTER++);
-        evalResp = (EvaluateResponseClass) sendRequest(evalReq);
-
-        Map<String, Map<String, String>> mSigs = parseMethodSignatures(evalResp.getBody().getResult());
-        List<PyMethodRaw> methods = new LinkedList<>();
-        for (String mName : mSigs.keySet()) {
-            PyMethodRaw mRaw = new PyMethodRaw();
-            // Set name
-            mRaw.setName(mName);
-            mRaw.setClassName(qualifiedClassName);
-            // Set arg type names
-            List<String> argTypeNames = new LinkedList<>();
-            List<String> argNames = new ArrayList<>();
-            for (Map.Entry<String, String> mArg : mSigs.get(mName).entrySet()) {
-                argNames.add(mArg.getKey());
-                argTypeNames.add(mArg.getValue());
-            }
-            mRaw.setArgumentTypeNames(argTypeNames);
-            mRaw.setArgumentNames(argNames);
-            // Set line nos and filename
-            evalArgs.setExpression(PyEvalExBuilder.getMethodBreakpointInfo(qualifiedClassName, mName));
-            evalReq.setSeq(REQUEST_COUNTER++);
-            evalResp = (EvaluateResponseClass) sendRequest(evalReq);
-
-            String json = evalResp.getBody().getResult().replace("'", "\"");
-            ObjectMapper mapper = new ObjectMapper();
-            JsonNode root;
-            try {
-                root = mapper.readTree(json);
-            } catch (JsonProcessingException e) {
-                return null;
-            }
-            String fileRaw = root.get("file").asText();
-            String normalizedFile = Paths.get(fileRaw).normalize().toString();
-            mRaw.setFile(normalizedFile);
-            mRaw.setStartLineNo(root.get("start").asInt());
-            mRaw.setEndLineNo(root.get("end").asInt());
-            List<Integer> returnLines = new ArrayList<>();
-            for (JsonNode r : root.get("returns")) {
-                returnLines.add(r.asInt());
-            }
-            mRaw.setReturnLines(returnLines);
-            // TODO: Set return type
-
-            methods.add(mRaw);
-        }
-        rawType.setMethods(methods);
 
         // Set File
         evalArgs.setExpression(PyEvalExBuilder.getFileForClass(qualifiedClassName));
@@ -229,88 +211,30 @@ public class DebugpyClient {
         return new DAPValue(evalResp.getBody().getResult(), evalResp.getBody().getType(), evalResp.getBody().getVariablesReference());
     }
 
-    protected Map<String, String> getRuntimeInstanceVars(long frameId) {
+    protected List<PyFieldRaw> getInstanceVariables(long currFrameId) {
+        List<PyFieldRaw> rawFields = new ArrayList<>();
+
         var evalArgs = new EvaluateRequestArguments();
-        evalArgs.setExpression("self.__dict__");
+        evalArgs.setExpression(PyEvalExBuilder.getSelfVarsWithType());
+        evalArgs.setFrameID(currFrameId);
         evalArgs.setContext("watch");
-        evalArgs.setFrameID(frameId);
         var evalReq = new EvaluateRequestClass();
         evalReq.setSeq(REQUEST_COUNTER++);
         evalReq.setArguments(evalArgs);
         var evalResp = (EvaluateResponseClass) sendRequest(evalReq);
 
         String result = evalResp.getBody().getResult();
-        System.out.println("INSTANCE_VARS: " + result);
-        String jsonCompatible = result.replace('\'', '"');
-        Map<String, Object> map = null;
-        try {
-            map = mapper.readValue(jsonCompatible, Map.class);
-        } catch (JsonProcessingException e) {
-            throw new RuntimeException(e);
-        }
-
-        // Optionally stringify values:
-        Map<String, String> finalMap = new HashMap<>();
-        for (Map.Entry<String, Object> entry : map.entrySet()) {
-            finalMap.put(entry.getKey(), String.valueOf(entry.getValue()));
-        }
-
-        System.out.println("final Map: " + finalMap);
-
-        return finalMap;
-    }
-
-    public static Map<String, Map<String, String>> parseMethodSignatures(String evalResp) {
-        Map<String, Map<String, String>> result = new HashMap<>();
-        evalResp = evalResp.strip().replaceAll("^'+|'+$", ""); // Remove outer quotes
-        String[] lines = evalResp.split("\\\\n"); // split on literal `\n`
-
-        for (String line : lines) {
-            Matcher matcher = SIGNATURE_PATTERN.matcher(line.strip());
-            if (matcher.matches()) {
-                String methodName = matcher.group(1);
-                String params = matcher.group(2);
-                Map<String, String> paramMap = new LinkedHashMap<>();
-                if (!params.isEmpty()) {
-                    for (String param : params.split(",")) {
-                        param = param.strip();
-                        if (param.equals("self")) continue;
-                        String[] parts = param.split(":");
-                        if (parts.length == 2) {
-                            String paramName = parts[0].strip();
-                            String paramType = parts[1].strip();
-                            paramMap.put(paramName, paramType);
-                        } else {
-                            // TODO: Unknown handling
-                            System.out.printf("Unknown type for argument '%s'\n", parts[0].strip());
-                        }
-                    }
-                }
-                result.put(methodName, paramMap);
+        if (!result.equals("''")) {
+            String vars = result.substring(1, result.length() - 1);
+            String[] fields = vars.split(",");
+            for (String field : fields) {
+                String[] fieldParts = field.split(":");
+                String fieldName = fieldParts[0];
+                String fieldType = fieldParts[1];
+                rawFields.add(new PyFieldRaw(fieldName, fieldType));
             }
         }
-        return result;
-    }
-
-    public Map<String, String> parsePythonTypeString(String input) {
-        Map<String, String> result = new HashMap<>();
-
-        Pattern pattern = Pattern.compile(
-                "'(.*?)'\\s*:\\s*(<class\\s+['\"](.*?)['\"]>|typing\\.[\\w\\[\\], ]+|\".*?\"|'.*?'|\\w+)"
-        );
-        Matcher matcher = pattern.matcher(input);
-
-        while (matcher.find()) {
-            String key = matcher.group(1);
-            String fullValue = matcher.group(2);
-
-            String innerType = matcher.group(3);
-            String value = (innerType != null) ? innerType : fullValue;
-
-            result.put(key, value);
-        }
-
-        return result;
+        return rawFields;
     }
 
     protected boolean setBreakpoints(String file, Set<Integer> lines) {

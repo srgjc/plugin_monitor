@@ -1,11 +1,12 @@
 package org.tzi.use.monitor.plugins.monitor.vm.mm.python;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class PyTypeRaw {
     private String name;
-    private List<PyFieldRaw> fields;
-    private List<PyMethodRaw> methods;
+    private List<PyFieldRaw> fields = new ArrayList<>();
+    private List<PyMethodRaw> methods = new ArrayList<>();
     private boolean isPrimitive;
     private String file;
 

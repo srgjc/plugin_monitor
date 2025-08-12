@@ -52,4 +52,13 @@ public class PyObject extends PyBase implements VMObject {
         return adapter.getUSEValue(dapValue);
     }
 
+    @Override
+    public String toString() {
+        return "PyObject{" +
+                "rawObject=" + rawObject +
+                ", type=" + type +
+                ", useObject=" + useObject +
+                '}';
+    }
+
 }

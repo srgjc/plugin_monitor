@@ -87,7 +87,7 @@ public class PythonAdapter extends AbstractVMAdapter {
         System.out.println("Creating Python adapter settings...");
         settings.add(SETTING_HOST_IDX, new VMAdapterSetting("Host", "localhost"));
         settings.add(SETTING_PORT_IDX, new VMAdapterSetting("Port", "5678"));
-        settings.add(SETTING_WORKSPACE_IDX, new VMAdapterSetting("SUM root dir", ""));
+        settings.add(SETTING_WORKSPACE_IDX, new VMAdapterSetting("SUM root dir", "/home/serj/git/uni/dpy-server"));
     }
 
     @Override
@@ -139,21 +139,21 @@ public class PythonAdapter extends AbstractVMAdapter {
     @Override
     public VMType getVMType(String name) {
         System.out.println("Getting VMType '" + name + "'...");
+        PyTypeRaw rawType = debugpyClient.getVMType(name);
         PyType res = null;
-        if (!typeMapping.containsKey(name)) {
-            var rawType = debugpyClient.getVMType(name);
-            if (rawType != null) {
+        if (rawType != null) {
+            if (!typeMapping.containsKey(name)) {
                 res = new PyType(this, rawType);
-            }
-            if (res != null && !res.getRawType().isPrimitive()) {
-                fileToClassNameMap.put(res.getRawType().getFile(), name);
+                fileToClassNameMap.put(rawType.getFile(), name);
+                typeMapping.put(name, res);
+                controller.storeVMType(name, res);
                 System.out.println("fileToClassNameMap: " + fileToClassNameMap);
+            } else {
+                res = typeMapping.get(name);
             }
-            typeMapping.put(name, res);
         }
-        System.out.println("Got VMType '" + name + "'..." + res);
-        controller.storeVMType(name, typeMapping.get(name));
-        return typeMapping.get(name);
+        System.out.println("Got VMType '" + typeMapping.get(name) + "' for " + name);
+        return res;
     }
 
     public DAPValue getDAPValue(Long objId, String fName) {
@@ -370,14 +370,14 @@ public class PythonAdapter extends AbstractVMAdapter {
     public void registerConstructorCallInterest(VMType vmType) {
         PyMethodRaw method = ((PyMethod) vmType.getMethodsByName("__init__").getFirst()).getMethod();
         String file = method.getFile();
-        int startLine = method.getStartLineNo();
+        int endLineNo = method.getEndLineNo();
         if (!breakpoints.containsKey(file)) {
             Map<Integer, BreakpointType> breakpointTypeMap = new HashMap<>();
-            breakpointTypeMap.put(startLine, BreakpointType.CONSTRUCTOR_CALL);
+            breakpointTypeMap.put(endLineNo, BreakpointType.CONSTRUCTOR_CALL);
             breakpoints.put(file, breakpointTypeMap);
         } else {
            Map<Integer, BreakpointType> currBps = breakpoints.get(file);
-           currBps.put(startLine, BreakpointType.CONSTRUCTOR_CALL);
+           currBps.put(endLineNo, BreakpointType.CONSTRUCTOR_CALL);
         }
         debugpyClient.setBreakpoints(file, breakpoints.get(file).keySet());
         System.out.println("BREAKPOINT_MAP: " + breakpoints);
@@ -462,7 +462,9 @@ public class PythonAdapter extends AbstractVMAdapter {
         pyObjectRaw.setRawType(pyType.getRawType());
         PyObject pyObject = new PyObject(this, pyObjectRaw, pyType);
 
-        System.out.println("OnConstructor OBJECT_ID: " + pyObjectRaw.getId());
+        List<PyFieldRaw> instanceVars = debugpyClient.getInstanceVariables(currentFrame.getID());
+        pyType.getRawType().setFields(instanceVars);
+
         controller.onNewVMObject(pyObject);
     }
 

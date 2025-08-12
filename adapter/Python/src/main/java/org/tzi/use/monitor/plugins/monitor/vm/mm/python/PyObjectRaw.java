@@ -19,4 +19,12 @@ public class PyObjectRaw {
     public Long getId() {
         return id;
     }
+
+    @Override
+    public String toString() {
+        return "PyObjectRaw{" +
+                "id=" + id +
+                ", rawType=" + rawType +
+                '}';
+    }
 }

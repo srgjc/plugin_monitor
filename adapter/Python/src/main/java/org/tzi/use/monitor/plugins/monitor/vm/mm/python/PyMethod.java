@@ -30,7 +30,7 @@ public class PyMethod extends PyBase implements VMMethod {
 
     @Override
     public List<VMType> getArgumentTypes() {
-        List<VMType> types = new ArrayList<>(method.getArgumentTypeNames().size());
+        List<VMType> types = new ArrayList<>();
         for (String typeName : method.getArgumentTypeNames()) {
             types.add(adapter.getVMType(typeName));
         }

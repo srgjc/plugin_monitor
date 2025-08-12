@@ -1,11 +1,12 @@
 package org.tzi.use.monitor.plugins.monitor.vm.mm.python;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class PyMethodRaw {
 
     private String name;
-    private List<String> argumentTypeNames;
+    private List<String> argumentTypeNames = new ArrayList<>();
     private List<String> argumentNames;
     private int startLineNo;
     private int endLineNo;
