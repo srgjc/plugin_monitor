@@ -44,11 +44,7 @@ public class PythonAdapter extends AbstractVMAdapter {
 
     public Set<VMObject> readInstances(PyType type) {
         PyType pyType = typeMapping.get(type.getName());
-        Set<VMObject> instances = new HashSet<>();
-        for (PyObjectRaw rawObj : debugpyClient.getInstances(pyType)) {
-            instances.add(new PyObject(this, rawObj, pyType));
-        }
-        return instances;
+        return debugpyClient.getInstances(pyType);
     }
 
     @Override
@@ -99,7 +95,7 @@ public class PythonAdapter extends AbstractVMAdapter {
         fileToClassNameMap = new HashMap<>();
 
         try {
-            debugpyClient = new DebugpyClient(host, port, workspace);
+            debugpyClient = new DebugpyClient(host, port, workspace, this);
         } catch (Exception e) {
             throw new MonitorException("Failed to create socket!", e);
         }
@@ -139,21 +135,15 @@ public class PythonAdapter extends AbstractVMAdapter {
     @Override
     public VMType getVMType(String name) {
         System.out.println("Getting VMType '" + name + "'...");
-        PyTypeRaw rawType = debugpyClient.getVMType(name);
-        PyType res = null;
-        if (rawType != null) {
-            if (!typeMapping.containsKey(name)) {
-                res = new PyType(this, rawType);
-                fileToClassNameMap.put(rawType.getFile(), name);
-                typeMapping.put(name, res);
-                controller.storeVMType(name, res);
-                System.out.println("fileToClassNameMap: " + fileToClassNameMap);
-            } else {
-                res = typeMapping.get(name);
-            }
+        if (typeMapping.containsKey(name)) {
+            return typeMapping.get(name);
         }
-        System.out.println("Got VMType '" + typeMapping.get(name) + "' for " + name);
-        return res;
+        PyType pyType = debugpyClient.getVMType(name);
+        fileToClassNameMap.put(pyType.getFile(), name);
+        typeMapping.put(name, pyType);
+        controller.storeVMType(name, pyType);
+        System.out.println("fileToClassNameMap: " + fileToClassNameMap);
+        return pyType;
     }
 
     public DAPValue getDAPValue(Long objId, String fName) {
@@ -328,7 +318,7 @@ public class PythonAdapter extends AbstractVMAdapter {
     @Override
     public void registerOperationCallInterest(VMMethod m) {
         if (!m.getName().equals("__init__")) {
-            PyMethodRaw method = ((PyMethod) m).getMethod();
+            PyMethod method = (PyMethod) m;
             String file = method.getFile();
             int startLine = method.getStartLineNo();
             List<Integer> returnLines = method.getReturnLines();
@@ -371,7 +361,7 @@ public class PythonAdapter extends AbstractVMAdapter {
 
     @Override
     public void registerConstructorCallInterest(VMType vmType) {
-        PyMethodRaw method = ((PyMethod) vmType.getMethodsByName("__init__").getFirst()).getMethod();
+        PyMethod method = ((PyMethod) vmType.getMethodsByName("__init__").getFirst());
         String file = method.getFile();
         int endLineNo = method.getEndLineNo();
         if (!breakpoints.containsKey(file)) {
@@ -391,9 +381,8 @@ public class PythonAdapter extends AbstractVMAdapter {
     }
 
     private void registerFieldModificationInterest(PyMethod m) {
-        PyMethodRaw mr = m.getMethod();
-        String file = mr.getFile();
-        int startLine = mr.getStartLineNo();
+        String file = m.getFile();
+        int startLine = m.getStartLineNo();
         if (!breakpoints.containsKey(file)) {
             Map<Integer, BreakpointType> breakpointTypeMap = new HashMap<>();
             breakpointTypeMap.put(startLine, BreakpointType.MODIFICATION);
@@ -454,12 +443,12 @@ public class PythonAdapter extends AbstractVMAdapter {
 
         PyType pyType = typeMapping.get(fullyQualifiedClassName);
 
-        PyObjectRaw pyObjectRaw = new PyObjectRaw(debugpyClient.getSelfId(currentFrame.getID()));
-        pyObjectRaw.setRawType(pyType.getRawType());
-        PyObject pyObject = new PyObject(this, pyObjectRaw, pyType);
+        List<PyField> instanceVars = debugpyClient.getInstanceVariables(currentFrame.getID(), fullyQualifiedClassName);
+        pyType.setFields(instanceVars);
 
-        List<PyFieldRaw> instanceVars = debugpyClient.getInstanceVariables(currentFrame.getID());
-        pyType.getRawType().setFields(instanceVars);
+        PyObject pyObject = new PyObject(this,
+                debugpyClient.getSelfId(currentFrame.getID()),
+                pyType);
 
         controller.onNewVMObject(pyObject);
     }
@@ -475,7 +464,7 @@ public class PythonAdapter extends AbstractVMAdapter {
         PyObject pyObject = (PyObject) controller.getVMObject(pyObjId);
 
         List<Value> argValues = new ArrayList<>();
-        for (String argName : pyMethod.getMethod().getArgumentNames()) {
+        for (String argName : pyMethod.getArgumentNames()) {
             DAPValue argDAPValue = debugpyClient.getMethodArgDAPValue(stackFrame.getID(), argName);
             argValues.add(getUSEValue(argDAPValue));
         }
@@ -505,7 +494,7 @@ public class PythonAdapter extends AbstractVMAdapter {
 
         // TODO FIX assert only one arg
         List<Value> argValues = new ArrayList<>();
-        for (String argName : m.getMethod().getArgumentNames()) {
+        for (String argName : m.getArgumentNames()) {
             DAPValue argDAPValue = debugpyClient.getMethodArgDAPValue(stackFrame.getID(), argName);
             argValues.add(getUSEValue(argDAPValue));
         }

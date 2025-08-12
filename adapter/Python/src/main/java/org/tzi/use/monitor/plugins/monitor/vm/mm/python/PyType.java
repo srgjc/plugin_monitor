@@ -7,27 +7,26 @@ import org.tzi.use.plugins.monitor.vm.mm.VMObject;
 import org.tzi.use.plugins.monitor.vm.mm.VMType;
 import org.tzi.use.uml.mm.MClass;
 
-import java.util.List;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 
-public class PyType extends PyBase implements VMType {
+public class PyType implements VMType {
 
-    private final PyTypeRaw rawType;
+    private final String typeName;
+    private final PythonAdapter adapter;
+
+    private List<PyField> fields = new ArrayList<>();
+    private List<PyMethod> methods;
+    private String file;
     private MClass useClass;
 
-    public PyType(PythonAdapter adapter, PyTypeRaw rawType) {
-        super(adapter);
-        this.rawType = rawType;
-    }
-
-    public PyTypeRaw getRawType() {
-        return rawType;
+    public PyType(PythonAdapter adapter, String typeName) {
+        this.adapter = adapter;
+        this.typeName = typeName;
     }
 
     @Override
     public String getName() {
-        return rawType.getName();
+        return typeName;
     }
 
     @Override
@@ -52,10 +51,11 @@ public class PyType extends PyBase implements VMType {
 
     @Override
     public List<VMMethod> getMethodsByName(String methodName) {
-        Optional<PyMethodRaw> methodOpt = rawType.getMethods().stream()
+        Optional<VMMethod> methodOpt = methods.stream()
                 .filter(m -> m.getName().equals(methodName))
+                .map(m -> (VMMethod) m)
                 .findAny();
-        return methodOpt.<List<VMMethod>>map(pyMethodRaw -> List.of(new PyMethod(getAdapter(), pyMethodRaw))).orElseGet(List::of);
+        return methodOpt.map(Collections::singletonList).orElseGet(List::of);
     }
 
     @Override
@@ -71,19 +71,47 @@ public class PyType extends PyBase implements VMType {
     @Override
     public VMField getFieldByName(String javaFieldName) {
         System.out.println("Getting field by name: " + javaFieldName + " for type: " + getName());
-        PyFieldRaw f = rawType.getFields().stream()
+        PyField f = fields.stream()
                 .filter(fi -> fi.getName().equals(javaFieldName))
                 .findFirst()
                 .orElse(null);
         System.out.println("Got field by name: " + javaFieldName + " = " + f);
-        return f != null ? new PyField(adapter, f, getName()) : null;
+        return f;
+    }
+
+    public List<PyMethod> getMethods() {
+        return methods;
+    }
+
+    public void setMethods(List<PyMethod> methods) {
+        this.methods = methods;
+    }
+
+    public String getFile() {
+        return file;
+    }
+
+    public void setFile(String file) {
+        this.file = file;
+    }
+
+    public List<PyField> getFields() {
+        return fields;
+    }
+
+    public void setFields(List<PyField> fields) {
+        this.fields = fields;
     }
 
     @Override
     public String toString() {
         return "PyType{" +
-                "rawType=" + rawType +
+                "typeName='" + typeName + '\'' +
+                ", fields=" + fields +
+                ", methods=" + methods +
+                ", file='" + file + '\'' +
                 ", useClass=" + useClass +
                 '}';
     }
+
 }

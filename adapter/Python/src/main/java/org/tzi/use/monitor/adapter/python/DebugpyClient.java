@@ -7,6 +7,7 @@ import org.tzi.use.monitor.adapter.python.custom.DAPValue;
 import org.tzi.use.monitor.adapter.python.dap.*;
 import org.tzi.use.monitor.adapter.python.dap.Thread;
 import org.tzi.use.monitor.plugins.monitor.vm.mm.python.*;
+import org.tzi.use.plugins.monitor.vm.mm.VMObject;
 
 import java.io.*;
 import java.net.Socket;
@@ -39,14 +40,16 @@ public class DebugpyClient {
     private final String workspace;
     private final String host;
     private final int port;
+    private final PythonAdapter adapter;
 
-    DebugpyClient(String host, int port, String workspace) throws IOException {
+    DebugpyClient(String host, int port, String workspace, PythonAdapter adapter) throws IOException {
         this.socket = new Socket(host, port);
         this.in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
         this.out = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
         this.workspace = workspace;
         this.host = host;
         this.port = port;
+        this.adapter = adapter;
         startReaderThread();
     }
 
@@ -111,14 +114,14 @@ public class DebugpyClient {
         return initResp.getSuccess();
     }
 
-    PyTypeRaw getVMType(String qualifiedClassName) {
+    PyType getVMType(String qualifiedClassName) {
         if (!qualifiedClassName.contains(".")) {
-            return new PyTypeRaw("Mock");
+            return new PyType(adapter, "Mock");
         }
 
         pause();
 
-        PyTypeRaw rawType = new PyTypeRaw(qualifiedClassName);
+        PyType pyType = new PyType(adapter, qualifiedClassName);
 
         // Set Methods
         var evalArgs = new EvaluateRequestArguments();
@@ -133,20 +136,15 @@ public class DebugpyClient {
         String result = evalResp.getBody().getResult();
 
         if (!result.equals("''")) {
-            List<PyMethodRaw> methods = new LinkedList<>();
+            List<PyMethod> methods = new LinkedList<>();
 
             String escapedResult = result.substring(1, result.length() - 1);
 
             String[] methodSigs = escapedResult.split(";");
 
             for (String methodSig : methodSigs) {
-                PyMethodRaw mRaw = new PyMethodRaw();
-
                 String[] sigParts = methodSig.split(":");
-
-                mRaw.setName(sigParts[0]);
-
-                mRaw.setClassName(qualifiedClassName);
+                PyMethod pyMethod = new PyMethod(adapter, sigParts[0], qualifiedClassName);
 
                 List<String> argNames = new ArrayList<>();
                 List<String> argTypes = new ArrayList<>();
@@ -157,11 +155,11 @@ public class DebugpyClient {
                     argNames.add(argName);
                     argTypes.add("Mock");
                 }
-                mRaw.setArgumentNames(argNames);
-                mRaw.setArgumentTypeNames(argTypes);
+                pyMethod.setArgumentNames(argNames);
+                pyMethod.setArgumentTypes(argTypes);
 
                 // Set line nos and filename
-                evalArgs.setExpression(PyEvalExBuilder.getMethodBreakpointInfo(qualifiedClassName, mRaw.getName()));
+                evalArgs.setExpression(PyEvalExBuilder.getMethodBreakpointInfo(qualifiedClassName, pyMethod.getName()));
                 evalReq.setSeq(REQUEST_COUNTER++);
                 evalResp = (EvaluateResponseClass) sendRequest(evalReq);
 
@@ -175,18 +173,18 @@ public class DebugpyClient {
                 }
                 String fileRaw = root.get("file").asText();
                 String normalizedFile = Paths.get(fileRaw).normalize().toString();
-                mRaw.setFile(normalizedFile);
-                mRaw.setStartLineNo(root.get("start").asInt());
-                mRaw.setEndLineNo(root.get("end").asInt());
+                pyMethod.setFile(normalizedFile);
+                pyMethod.setStartLineNo(root.get("start").asInt());
+                pyMethod.setEndLineNo(root.get("end").asInt());
                 List<Integer> returnLines = new ArrayList<>();
                 for (JsonNode r : root.get("returns")) {
                     returnLines.add(r.asInt());
                 }
-                mRaw.setReturnLines(returnLines);
+                pyMethod.setReturnLines(returnLines);
 
-                methods.add(mRaw);
+                methods.add(pyMethod);
             }
-            rawType.setMethods(methods);
+            pyType.setMethods(methods);
         }
 
         // Set File
@@ -197,9 +195,9 @@ public class DebugpyClient {
         String file = evalResp.getBody().getResult();
         String normalizedPath = Path.of(file).normalize().toString().replace("'", "");
         System.out.println("SETTING FILE TO: " + normalizedPath);
-        rawType.setFile(normalizedPath);
+        pyType.setFile(normalizedPath);
 
-        return rawType;
+        return pyType;
     }
 
     protected DAPValue getDAPValue(Long objectId, String fName) {
@@ -214,8 +212,8 @@ public class DebugpyClient {
         return new DAPValue(evalResp.getBody().getResult(), evalResp.getBody().getType(), evalResp.getBody().getVariablesReference());
     }
 
-    protected List<PyFieldRaw> getInstanceVariables(long currFrameId) {
-        List<PyFieldRaw> rawFields = new ArrayList<>();
+    protected List<PyField> getInstanceVariables(long currFrameId, String className) {
+        List<PyField> rawFields = new ArrayList<>();
 
         var evalArgs = new EvaluateRequestArguments();
         evalArgs.setExpression(PyEvalExBuilder.getSelfVarsWithType());
@@ -234,7 +232,9 @@ public class DebugpyClient {
                 String[] fieldParts = field.split(":");
                 String fieldName = fieldParts[0];
                 String fieldType = fieldParts[1];
-                rawFields.add(new PyFieldRaw(fieldName, fieldType));
+                PyField pyField = new PyField(adapter, fieldName, className);
+                pyField.setType(fieldType);
+                rawFields.add(pyField);
             }
         }
         return rawFields;
@@ -354,7 +354,7 @@ public class DebugpyClient {
         return threadsResp.getBody().getThreads();
     }
 
-    protected Set<PyObjectRaw> getInstances(PyType pyType) {
+    protected Set<VMObject> getInstances(PyType pyType) {
         pause();
 
         var evalArgs = new EvaluateRequestArguments();
@@ -366,21 +366,17 @@ public class DebugpyClient {
         evalReq.setArguments(evalArgs);
         var evalResp = (EvaluateResponseClass) sendRequest(evalReq);
 
-        Set<PyObjectRaw> rawObjs = new HashSet<>();
-
         String result = evalResp.getBody().getResult();
+
+        Set<VMObject> objs = new HashSet<>();
         if (result.equals("[]")) {
-            return rawObjs;
+            return objs;
         }
-
-        String[] objIds = result.substring(1, result.length() - 1).split(",");
-        for (String id : objIds) {
-            PyObjectRaw rawObj = new PyObjectRaw(Long.parseLong(id.trim()));
-            rawObj.setRawType(pyType.getRawType());
-            rawObjs.add(rawObj);
+        String[] ids = result.substring(1, result.length() - 1).split(",");
+        for (String id : ids) {
+            objs.add(new PyObject(adapter, Long.parseLong(id.trim()), pyType));
         }
-
-        return rawObjs;
+        return objs;
     }
 
     public Variable[] getDAPChildren(long variablesReference) {

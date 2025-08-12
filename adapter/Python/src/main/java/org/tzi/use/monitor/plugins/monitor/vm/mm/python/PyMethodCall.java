@@ -9,14 +9,15 @@ import org.tzi.use.uml.ocl.value.Value;
 
 import java.util.List;
 
-public class PyMethodCall extends PyBase implements VMMethodCall {
+public class PyMethodCall implements VMMethodCall {
 
     private final PyMethod pyMethod;
     private final PyObject pyObject;
     private final List<Value> argVals;
+    private final PythonAdapter adapter;
 
     public PyMethodCall(PythonAdapter adapter, PyMethod pyMethod, PyObject pyObject, List<Value> argVals) {
-        super(adapter);
+        this.adapter = adapter;
         this.pyMethod = pyMethod;
         this.pyObject = pyObject;
         this.argVals = argVals;

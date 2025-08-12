@@ -8,22 +8,23 @@ import org.tzi.use.plugins.monitor.vm.mm.VMType;
 import org.tzi.use.uml.ocl.value.Value;
 import org.tzi.use.uml.sys.MObject;
 
-public class PyObject extends PyBase implements VMObject {
+public class PyObject implements VMObject {
 
-    private final PyObjectRaw rawObject;
+    private final long id;
     private final VMType type;
+    private final PythonAdapter adapter;
 
     private MObject useObject;
 
-    public PyObject(PythonAdapter adapter, PyObjectRaw rawObject, PyType type) {
-        super(adapter);
-        this.rawObject = rawObject;
+    public PyObject(PythonAdapter adapter, long id, PyType type) {
+        this.adapter = adapter;
         this.type = type;
+        this.id = id;
     }
 
     @Override
     public Object getId() {
-        return rawObject.getId();
+        return id;
     }
 
     @Override
@@ -55,7 +56,7 @@ public class PyObject extends PyBase implements VMObject {
     @Override
     public String toString() {
         return "PyObject{" +
-                "rawObject=" + rawObject +
+                "id=" + id +
                 ", type=" + type +
                 ", useObject=" + useObject +
                 '}';

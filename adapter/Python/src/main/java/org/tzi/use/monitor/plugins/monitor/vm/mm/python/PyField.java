@@ -5,28 +5,32 @@ import org.tzi.use.plugins.monitor.vm.mm.VMField;
 import org.tzi.use.uml.mm.MAssociationEnd;
 import org.tzi.use.uml.mm.MAttribute;
 
-public class PyField extends PyBase implements VMField {
+public class PyField implements VMField {
 
-    private final PyFieldRaw pyFieldRaw;
+    private final String id;
     private final String className;
+    private final String fieldName;
+    private final PythonAdapter adapter;
 
+    private String type;
     private MAttribute useAttribute;
     private MAssociationEnd useAssociationEnd;
 
-    public PyField(PythonAdapter adapter, PyFieldRaw pyFieldRaw, String className) {
-        super(adapter);
-        this.pyFieldRaw = pyFieldRaw;
+    public PyField(PythonAdapter adapter, String fieldName, String className) {
+        this.adapter = adapter;
+        this.fieldName = fieldName;
         this.className = className;
+        this.id = String.format("%s:%s", fieldName, className);
     }
 
     @Override
     public String getName() {
-        return pyFieldRaw.getName();
+        return fieldName;
     }
 
     @Override
     public void setUSEAttribute(MAttribute attr) {
-        this.useAttribute = attr;
+        useAttribute = attr;
     }
 
     @Override
@@ -46,18 +50,28 @@ public class PyField extends PyBase implements VMField {
 
     @Override
     public Object getId() {
-        return className + ":" + getName();
+        return id;
     }
 
-    public PyFieldRaw getPyFieldRaw() {
-        return pyFieldRaw;
+    public String getClassName() {
+        return className;
+    }
+
+    public String getType() {
+        return type;
+    }
+
+    public void setType(String type) {
+        this.type = type;
     }
 
     @Override
     public String toString() {
         return "PyField{" +
-                "pyFieldRaw=" + pyFieldRaw +
+                "id='" + id + '\'' +
                 ", className='" + className + '\'' +
+                ", fieldName='" + fieldName + '\'' +
+                ", type='" + type + '\'' +
                 ", useAttribute=" + useAttribute +
                 ", useAssociationEnd=" + useAssociationEnd +
                 '}';
