@@ -235,9 +235,20 @@ public class DebugpyClient {
         return new DAPValue(evalResp.getBody().getResult(), evalResp.getBody().getType(), evalResp.getBody().getVariablesReference());
     }
 
-    protected List<PyField> getInstanceVariables(long currFrameId, String className) {
-        List<PyField> rawFields = new ArrayList<>();
+    protected List<PyField> getInstanceVariables(long objId, long currFrameId, String className) {
+        var evalArgs = new EvaluateRequestArguments();
+        evalArgs.setExpression(PyEvalExBuilder.getVarsByObjId(objId));
+        evalArgs.setFrameID(currFrameId);
+        evalArgs.setContext("watch");
+        var evalReq = new EvaluateRequestClass();
+        evalReq.setSeq(REQUEST_COUNTER++);
+        evalReq.setArguments(evalArgs);
+        EvaluateResponseClass evalResp = (EvaluateResponseClass) sendRequest(evalReq);
 
+        return getFieldsFromVarsResp(evalResp, className);
+    }
+
+    protected List<PyField> getInstanceVariables(long currFrameId, String className) {
         var evalArgs = new EvaluateRequestArguments();
         evalArgs.setExpression(PyEvalExBuilder.getSelfVarsWithType());
         evalArgs.setFrameID(currFrameId);
@@ -245,9 +256,14 @@ public class DebugpyClient {
         var evalReq = new EvaluateRequestClass();
         evalReq.setSeq(REQUEST_COUNTER++);
         evalReq.setArguments(evalArgs);
-        var evalResp = (EvaluateResponseClass) sendRequest(evalReq);
+        EvaluateResponseClass evalResp = (EvaluateResponseClass) sendRequest(evalReq);
 
-        String result = evalResp.getBody().getResult();
+        return getFieldsFromVarsResp(evalResp, className);
+    }
+
+    private List<PyField> getFieldsFromVarsResp(EvaluateResponseClass varsResponse, String className) {
+        List<PyField> pyFields = new ArrayList<>();
+        String result = varsResponse.getBody().getResult();
         if (!result.equals("''")) {
             String vars = result.substring(1, result.length() - 1);
             String[] fields = vars.split(",");
@@ -257,10 +273,10 @@ public class DebugpyClient {
                 String fieldType = fieldParts[1];
                 PyField pyField = new PyField(adapter, fieldName, className);
                 pyField.setType(fieldType);
-                rawFields.add(pyField);
+                pyFields.add(pyField);
             }
         }
-        return rawFields;
+        return pyFields;
     }
 
     protected boolean setBreakpoints(String file, Set<Integer> lines) {
@@ -382,9 +398,11 @@ public class DebugpyClient {
         controller.storeVMType(pyType.getName(), pyType);
         pause();
 
+        long frameId = getCurrentFrameId(getThreadId("MainThread"));
+
         var evalArgs = new EvaluateRequestArguments();
         evalArgs.setContext("watch");
-        evalArgs.setFrameID((long) getCurrentFrameId(getThreadId("MainThread")));
+        evalArgs.setFrameID(frameId);
         evalArgs.setExpression(PyEvalExBuilder.getInstanceIds(pyType.getName()));
         var evalReq = new EvaluateRequestClass();
         evalReq.setSeq(REQUEST_COUNTER++);
@@ -399,7 +417,14 @@ public class DebugpyClient {
         }
         String[] ids = result.substring(1, result.length() - 1).split(",");
         for (String id : ids) {
-            objs.add(new PyObject(adapter, Long.parseLong(id.trim()), pyType));
+            long objId = Long.parseLong(id.trim());
+            boolean missedConstructorCallForObj = !controller.existsVMObject(objId);
+            if (missedConstructorCallForObj) {
+                List<PyField> instanceVars = getInstanceVariables(objId, frameId, pyType.getName());
+                pyType.setFields(instanceVars);
+            }
+            PyObject pyObject = new PyObject(adapter, objId, pyType);
+            objs.add(pyObject);
         }
         return objs;
     }

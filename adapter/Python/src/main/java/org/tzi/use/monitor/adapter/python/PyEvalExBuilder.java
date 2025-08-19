@@ -6,6 +6,10 @@ public class PyEvalExBuilder {
         return "\",\".join([f\"{k}:{type(v).__name__}\" for k, v in vars(self).items()])\n";
     }
 
+    public static String getVarsByObjId(long objId) {
+        return String.format("\",\".join([f\"{k}:{type(v).__name__}\" for o in __import__('gc').get_objects() if id(o)==%s for k,v in vars(o).items()])\n", objId);
+    }
+
     public static String getFileForClass(String qualifiedClassName) {
         int lastDot = qualifiedClassName.lastIndexOf('.');
         if (lastDot == -1) {
