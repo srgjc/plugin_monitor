@@ -1,7 +1,6 @@
 package org.tzi.use.monitor.plugins.monitor.vm.mm.python;
 
 import org.tzi.use.monitor.adapter.python.PythonAdapter;
-import org.tzi.use.monitor.adapter.python.custom.DAPValue;
 import org.tzi.use.plugins.monitor.vm.mm.VMField;
 import org.tzi.use.plugins.monitor.vm.mm.VMObject;
 import org.tzi.use.plugins.monitor.vm.mm.VMType;
@@ -49,8 +48,7 @@ public class PyObject implements VMObject {
 
     @Override
     public Value getValue(VMField field) {
-        DAPValue dapValue = adapter.getDAPValue((Long) getId(), field.getName());
-        return adapter.getUSEValue(dapValue);
+        return adapter.getUSEValue(id, field.getName());
     }
 
     @Override

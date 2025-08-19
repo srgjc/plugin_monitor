@@ -7,7 +7,14 @@ import org.tzi.use.monitor.adapter.python.custom.DAPValue;
 import org.tzi.use.monitor.adapter.python.dap.*;
 import org.tzi.use.monitor.adapter.python.dap.Thread;
 import org.tzi.use.monitor.plugins.monitor.vm.mm.python.*;
+import org.tzi.use.plugins.monitor.Monitor;
+import org.tzi.use.plugins.monitor.vm.mm.VMMethod;
 import org.tzi.use.plugins.monitor.vm.mm.VMObject;
+import org.tzi.use.plugins.monitor.vm.mm.VMType;
+import org.tzi.use.uml.ocl.type.TupleType;
+import org.tzi.use.uml.ocl.type.Type;
+import org.tzi.use.uml.ocl.type.TypeFactory;
+import org.tzi.use.uml.ocl.value.*;
 
 import java.io.*;
 import java.net.Socket;
@@ -15,6 +22,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.logging.Level;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -22,9 +30,7 @@ import java.util.regex.Pattern;
  * @author Sergio Jimenez
  */
 public class DebugpyClient {
-    private static final Pattern SIGNATURE_PATTERN = Pattern.compile("^(\\w+)\\((.*?)\\)\\s*->\\s*.*$");
-    private static final Pattern TYPE_CLASS_PATTERN = Pattern.compile("\"(\\w+)\":\\s*\"(\\w+)\"");
-    private static final Pattern JSON_STRINGIFY_PATTERN = Pattern.compile("(:\\s*)([^\"{},\\s][^,}]*)");
+    private static final Pattern MEMORY_ADDR_PATTERN = Pattern.compile("0x[0-9a-fA-F]+");
 
     private static int REQUEST_COUNTER = 1;
 
@@ -41,14 +47,27 @@ public class DebugpyClient {
     private final String host;
     private final int port;
     private final PythonAdapter adapter;
+    private boolean isConnected;
+    private Map<String, Map<Integer, BreakpointType>> breakpoints;
+    private java.lang.Thread breakpointWatcher;
+    public Map<String, PyType> typeMapping;
+    private Map<String, String> fileToClassNameMap;
+    private Monitor.Controller controller;
 
-    DebugpyClient(String host, int port, String workspace, PythonAdapter adapter) throws IOException {
+    DebugpyClient(String host, int port, String workspace,
+                  PythonAdapter adapter, Monitor.Controller controller) throws IOException {
         this.socket = new Socket(host, port);
         this.in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
         this.out = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
         this.workspace = workspace;
         this.host = host;
         this.port = port;
+        this.controller = controller;
+
+        typeMapping = new HashMap<>();
+        breakpoints = new HashMap<>();
+        fileToClassNameMap = new HashMap<>();
+
         this.adapter = adapter;
         startReaderThread();
     }
@@ -111,10 +130,17 @@ public class DebugpyClient {
             throw new RuntimeException(e);
         }
         running = true;
+        breakpointWatcher = new java.lang.Thread(new EventHandler(), "EventManager");
+        breakpointWatcher.start();
+        isConnected = true;
         return initResp.getSuccess();
     }
 
     PyType getVMType(String qualifiedClassName) {
+        if (typeMapping.containsKey(qualifiedClassName)) {
+            return typeMapping.get(qualifiedClassName);
+        }
+
         if (!qualifiedClassName.contains(".")) {
             return new PyType(adapter, "Mock");
         }
@@ -197,6 +223,9 @@ public class DebugpyClient {
         System.out.println("SETTING FILE TO: " + normalizedPath);
         pyType.setFile(normalizedPath);
 
+        fileToClassNameMap.put(pyType.getFile(), qualifiedClassName);
+        typeMapping.put(qualifiedClassName, pyType);
+        controller.storeVMType(qualifiedClassName, pyType);
         return pyType;
     }
 
@@ -310,6 +339,7 @@ public class DebugpyClient {
         stopReq.setSeq(REQUEST_COUNTER++);
         stopReq.setArguments(stopArgs);
         var stopResp = (DisconnectResponseClass) sendRequest(stopReq);
+        isConnected = false;
         return stopResp.getSuccess();
     }
 
@@ -355,6 +385,7 @@ public class DebugpyClient {
     }
 
     protected Set<VMObject> getInstances(PyType pyType) {
+        pyType = typeMapping.get(pyType.getName());
         pause();
 
         var evalArgs = new EvaluateRequestArguments();
@@ -387,25 +418,6 @@ public class DebugpyClient {
         varReq.setArguments(varArgs);
         var varResp = (VariablesResponseClass) sendRequest(varReq);
         return varResp.getBody().getVariables();
-    }
-
-    private String stringifyJsonEntries(String json) {
-        Matcher m = JSON_STRINGIFY_PATTERN.matcher(json);
-        StringBuilder sb = new StringBuilder();
-        while (m.find()) {
-            String value = m.group(2).trim();
-            if (!(value.startsWith("\"") && value.endsWith("\""))) {
-                m.appendReplacement(sb, m.group(1) + "\"" + value + "\"");
-            } else {
-                m.appendReplacement(sb, m.group());
-            }
-        }
-        m.appendTail(sb);
-        return sb.toString();
-    }
-
-    private void getStackStrace() {
-
     }
 
     protected Long getSelfId(long frameId) {
@@ -511,17 +523,16 @@ public class DebugpyClient {
                           //  System.out.println("Ignored async message: " + json);
                         //}
                     }
-                    if (msg instanceof DAPEvent) {
-                        System.out.println("Event instance: " + msg);
-                        if (msg instanceof InitializedEventClass) {
-                            initEvent.complete((DAPEvent) msg);
+                    if (msg instanceof DAPEvent dapEvent) {
+                        if (dapEvent instanceof InitializedEventClass initializedEvent) {
+                            initEvent.complete(initializedEvent);
                         }
-                        if (msg instanceof StoppedEventClass) {
-                            if (((StoppedEventClass) msg).getBody().getReason().equals("breakpoint")) {
+                        if (msg instanceof StoppedEventClass stopEvent) {
+                            if (stopEvent.getBody().getReason().equals("breakpoint")) {
                                 running = false;
-                                eventQueue.add((DAPEvent) msg);
+                                eventQueue.add(stopEvent);
                             } else {
-                                stoppedEvent.complete((DAPEvent) msg);
+                                stoppedEvent.complete(stopEvent);
                             }
                         }
                     }
@@ -532,6 +543,307 @@ public class DebugpyClient {
         });
         readerThread.setDaemon(true);
         readerThread.start();
+    }
+
+    public Value getUSEValue(DAPValue dapValue) {
+        if (dapValue == null) {
+            return UndefinedValue.instance;
+        }
+
+        System.out.println("Getting DAPValue for type: " + dapValue.getType());
+
+        return switch (dapValue.getType()) {
+            case "int" -> IntegerValue.valueOf(Integer.parseInt(dapValue.getResult()));
+            case "float" -> new RealValue(Double.parseDouble(dapValue.getResult()));
+            case "bool" -> BooleanValue.get(Boolean.parseBoolean(dapValue.getResult()));
+            case "str" -> new StringValue(dapValue.getResult());
+            case "list"-> {
+                List<DAPValue> allChildren = fetchChildren(dapValue.getVariablesReference());
+
+                List<DAPValue> items = allChildren.stream()
+                        .filter(child -> child.getName().matches("\\d+"))
+                        .sorted(Comparator.comparingInt(child -> Integer.parseInt(child.getName())))
+                        .toList();
+
+                Value[] sequence = new Value[items.size()];
+                for (int i = 0; i < items.size(); i++) {
+                    sequence[i] = getUSEValue(items.get(i));
+                }
+                yield new SequenceValue(TypeFactory.mkVoidType(), sequence);
+            }
+            case "tuple" -> {
+                List<DAPValue> allChildren = fetchChildren(dapValue.getVariablesReference());
+
+                List<DAPValue> items = allChildren.stream()
+                        .filter(child -> child.getName().matches("\\d+"))
+                        .sorted(Comparator.comparingInt(child -> Integer.parseInt(child.getName())))
+                        .toList();
+
+                TupleType.Part[] typeParts = new TupleType.Part[items.size()];
+                List<TupleValue.Part> valueParts = new ArrayList<>();
+
+                for (int i = 0; i < items.size(); i++) {
+                    DAPValue item = items.get(i);
+                    String name = "item" + i;
+
+                    Value value = getUSEValue(item);
+                    Type type = value.type();
+
+                    typeParts[i] = new TupleType.Part(i, name, type);
+                    valueParts.add(new TupleValue.Part(i, name, value));
+                }
+
+                TupleType tupleType = TypeFactory.mkTuple(typeParts);
+                yield new TupleValue(tupleType, valueParts);
+            }
+            // TODO FIXME: custom debugpy call for type resolution of keys and values separately needed
+            case "dict" -> {
+                List<DAPValue> dictEntries = fetchChildren(dapValue.getVariablesReference());
+
+                TupleType.Part[] p = new TupleType.Part[] {
+                        new TupleType.Part(0, "key", TypeFactory.mkVoidType()),
+                        new TupleType.Part(1, "value", TypeFactory.mkVoidType())
+                };
+                TupleType tupleType = TypeFactory.mkTuple(p);
+
+                List<Value> tupleValues = new ArrayList<>();
+
+                for (DAPValue entry : dictEntries) {
+                    if (entry.getVariablesReference() == 0) continue; // skip non-expandable entries
+
+                    List<DAPValue> keyValueChildren = fetchChildren(entry.getVariablesReference());
+
+                    DAPValue keyDap = keyValueChildren.stream()
+                            .filter(child -> "key".equals(child.getName()))
+                            .findFirst()
+                            .orElse(null);
+
+                    DAPValue valueDap = keyValueChildren.stream()
+                            .filter(child -> "value".equals(child.getName()))
+                            .findFirst()
+                            .orElse(null);
+
+                    if (keyDap != null && valueDap != null) {
+                        Value useKey = getUSEValue(keyDap);
+                        Value useValue = getUSEValue(valueDap);
+
+                        List<TupleValue.Part> parts = List.of(
+                                new TupleValue.Part(0, "key", useKey),
+                                new TupleValue.Part(1, "value", useValue)
+                        );
+
+                        tupleValues.add(new TupleValue(tupleType, parts));
+                    }
+                }
+
+                yield new SetValue(TypeFactory.mkVoidType(), tupleValues);
+            }
+            case "set" -> {
+                List<DAPValue> allChildren = fetchChildren(dapValue.getVariablesReference());
+
+                var items = allChildren.stream()
+                        .filter(child -> child.getName().matches("\\d+"))
+                        .toList();
+
+                List<Value> useValues = new ArrayList<>();
+
+                for (DAPValue item : items) {
+                    Value v = getUSEValue(item);
+                    useValues.add(v);
+                }
+
+                yield new SetValue(TypeFactory.mkVoidType(), useValues);
+            }
+
+            default -> {
+                // Object
+                if (dapValue.getResult().contains("object")) {
+                    long objId = extractHexAndConvertToDecimal(dapValue.getResult());
+                    if (controller.existsVMObject(objId)) {
+                        System.out.println("Found obj for USE value with id: " + objId);
+                        VMObject obj = controller.getVMObject(objId);
+                        yield new ObjectValue(obj.getUSEObject().cls(), obj.getUSEObject());
+                    }
+                }
+                // Unknown
+                System.out.println("Unknown case for dapValue type: " + dapValue.getType());
+                yield UndefinedValue.instance;
+            }
+        };
+    }
+
+    private long extractHexAndConvertToDecimal(String input) {
+        Matcher matcher = MEMORY_ADDR_PATTERN.matcher(input);
+        if (matcher.find()) {
+            String hexString = matcher.group();
+            return Long.parseLong(hexString.substring(2), 16);
+        }
+        return 0;
+    }
+
+    private List<DAPValue> fetchChildren(long variablesReference) {
+        List<DAPValue> res = new ArrayList<>();
+        Variable[] vars = getDAPChildren(variablesReference);
+        for (Variable var : vars) {
+            var dapVal = new DAPValue(var.getValue(), var.getType(), var.getVariablesReference());
+            dapVal.setName(var.getName());
+            res.add(dapVal);
+        }
+        return res;
+    }
+
+    public void registerOperationCallInterest(VMMethod m) {
+        if (!m.getName().equals("__init__")) {
+            PyMethod method = (PyMethod) m;
+            String file = method.getFile();
+            int startLine = method.getStartLineNo();
+            List<Integer> returnLines = method.getReturnLines();
+            if (!breakpoints.containsKey(file)) {
+                Map<Integer, BreakpointType> breakpointTypes = new HashMap<>();
+                breakpointTypes.put(startLine, BreakpointType.METHOD_CALL);
+                for (Integer returnLine : returnLines) {
+                    breakpointTypes.put(returnLine, BreakpointType.METHOD_EXIT);
+                }
+                breakpoints.put(file, breakpointTypes);
+            } else {
+                Map<Integer, BreakpointType> lineBreakpointTypes = breakpoints.get(file);
+                lineBreakpointTypes.put(startLine, BreakpointType.METHOD_CALL);
+                for (Integer returnLine : returnLines) {
+                    lineBreakpointTypes.put(returnLine, BreakpointType.METHOD_EXIT);
+                }
+            }
+            setBreakpoints(file, breakpoints.get(file).keySet());
+        }
+        if (m.getName().startsWith("set_")) {
+            registerFieldModificationInterest((PyMethod) m);
+        }
+    }
+
+    public void registerConstructorCallInterest(VMType vmType) {
+        PyMethod method = ((PyMethod) vmType.getMethodsByName("__init__").getFirst());
+        String file = method.getFile();
+        int endLineNo = method.getEndLineNo();
+        if (!breakpoints.containsKey(file)) {
+            Map<Integer, BreakpointType> breakpointTypeMap = new HashMap<>();
+            breakpointTypeMap.put(endLineNo, BreakpointType.CONSTRUCTOR_CALL);
+            breakpoints.put(file, breakpointTypeMap);
+        } else {
+            Map<Integer, BreakpointType> currBps = breakpoints.get(file);
+            currBps.put(endLineNo, BreakpointType.CONSTRUCTOR_CALL);
+        }
+        setBreakpoints(file, breakpoints.get(file).keySet());
+    }
+
+    private void registerFieldModificationInterest(PyMethod m) {
+        String file = m.getFile();
+        int startLine = m.getStartLineNo();
+        if (!breakpoints.containsKey(file)) {
+            Map<Integer, BreakpointType> breakpointTypeMap = new HashMap<>();
+            breakpointTypeMap.put(startLine, BreakpointType.MODIFICATION);
+            breakpoints.put(file, breakpointTypeMap);
+        } else {
+            Map<Integer, BreakpointType> currBps = breakpoints.get(file);
+            currBps.put(startLine, BreakpointType.MODIFICATION);
+        }
+        setBreakpoints(file, breakpoints.get(file).keySet());
+    }
+
+    private class EventHandler implements Runnable {
+        @Override
+        public void run() {
+            while (isConnected) {
+                try {
+                    DAPEvent event = eventQueue.take();
+                    if (!isConnected) {
+                        return;
+                    }
+                    switch (event) {
+                        case StoppedEventClass stopEvent -> {
+                            StackFrame currFrame = getCurrentFrame(Math.toIntExact(stopEvent.getBody().getThreadID()));
+                            String file = currFrame.getSource().getPath();
+                            String qualifiedClassName = fileToClassNameMap.get(file);
+
+                            BreakpointType breakpointType = breakpoints.get(file).get((int) currFrame.getLine());
+                            switch (breakpointType) {
+                                case CONSTRUCTOR_CALL -> onConstructorCall(currFrame, qualifiedClassName);
+                                case METHOD_CALL -> onMethodCall(currFrame, qualifiedClassName);
+                                case METHOD_EXIT -> onMethodExit(currFrame, qualifiedClassName);
+                                case MODIFICATION -> onAttrMod(currFrame, qualifiedClassName);
+                            }
+                            // Match monitor running state
+                            resume();
+                        }
+                        default -> controller.newLogMessage(this, Level.WARNING, "Unknown event!");
+                    }
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        }
+    }
+
+    private void onConstructorCall(StackFrame currentFrame, String fullyQualifiedClassName) {
+        controller.newLogMessage(this, Level.FINE, "onConstructorCall: " + fullyQualifiedClassName + "." + currentFrame.getName());
+
+        PyType pyType = typeMapping.get(fullyQualifiedClassName);
+
+        List<PyField> instanceVars = getInstanceVariables(currentFrame.getID(), fullyQualifiedClassName);
+        pyType.setFields(instanceVars);
+
+        PyObject pyObject = new PyObject(adapter,
+                getSelfId(currentFrame.getID()),
+                pyType);
+
+        controller.onNewVMObject(pyObject);
+    }
+
+    private void onMethodCall(StackFrame stackFrame, String fullyQualifiedClassName) {
+        controller.newLogMessage(this, Level.FINE, String.format("onMethodCall: %s.%s", fullyQualifiedClassName, stackFrame.getName()));
+
+        PyType pyType = typeMapping.get(fullyQualifiedClassName);
+        String methodId = (String) pyType.getMethodsByName(stackFrame.getName()).getFirst().getId();
+        PyMethod pyMethod = (PyMethod) controller.getVMMethod(methodId);
+
+        Long pyObjId = getSelfId(stackFrame.getID());
+        PyObject pyObject = (PyObject) controller.getVMObject(pyObjId);
+
+        List<Value> argValues = new ArrayList<>();
+        for (String argName : pyMethod.getArgumentNames()) {
+            DAPValue argDAPValue = getMethodArgDAPValue(stackFrame.getID(), argName);
+            argValues.add(getUSEValue(argDAPValue));
+        }
+
+        PyMethodCall pyMethodCall = new PyMethodCall(adapter, pyMethod, pyObject, argValues);
+
+        controller.onMethodCall(pyMethodCall);
+    }
+
+    private void onMethodExit(StackFrame stackFrame, String qualifiedClassName) {
+        PyType pyType = typeMapping.get(qualifiedClassName);
+        PyMethod pyMethod = (PyMethod) pyType.getMethodsByName(stackFrame.getName()).getFirst();
+        // TODO construct method call with runtime values
+        controller.onMethodExit(pyMethod, pyMethod.getId());
+    }
+
+    private void onAttrMod(StackFrame stackFrame, String qualifiedClassName) {
+        controller.newLogMessage(this, Level.FINE, "onAttributeModification: " + qualifiedClassName + "." + stackFrame.getName());
+
+        Long pyObjId = getSelfId(stackFrame.getID());
+        PyObject pyObject = (PyObject) controller.getVMObject(pyObjId);
+
+        PyField pyField = (PyField) pyObject.getType().getFieldByName(stackFrame.getName().replace("set_", ""));
+
+        String methodId = (String) pyObject.getType().getMethodsByName(stackFrame.getName()).getFirst().getId();
+        PyMethod m = (PyMethod) controller.getVMMethod(methodId);
+
+        // TODO FIX assert only one arg
+        List<Value> argValues = new ArrayList<>();
+        for (String argName : m.getArgumentNames()) {
+            DAPValue argDAPValue = getMethodArgDAPValue(stackFrame.getID(), argName);
+            argValues.add(getUSEValue(argDAPValue));
+        }
+
+        controller.onUpdateAttribute(pyObjId, pyField.getId(), argValues.get(0));
     }
 
 }
