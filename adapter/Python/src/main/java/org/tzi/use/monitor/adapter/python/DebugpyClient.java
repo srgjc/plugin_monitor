@@ -50,7 +50,6 @@ public class DebugpyClient {
     private boolean isConnected;
     private Map<String, Map<Integer, BreakpointType>> breakpoints;
     private java.lang.Thread breakpointWatcher;
-    public Map<String, PyType> typeMapping;
     private Map<String, String> fileToClassNameMap;
     private Monitor.Controller controller;
 
@@ -64,7 +63,6 @@ public class DebugpyClient {
         this.port = port;
         this.controller = controller;
 
-        typeMapping = new HashMap<>();
         breakpoints = new HashMap<>();
         fileToClassNameMap = new HashMap<>();
 
@@ -137,10 +135,6 @@ public class DebugpyClient {
     }
 
     PyType getVMType(String qualifiedClassName) {
-        if (typeMapping.containsKey(qualifiedClassName)) {
-            return typeMapping.get(qualifiedClassName);
-        }
-
         if (!qualifiedClassName.contains(".")) {
             return new PyType(adapter, "Mock");
         }
@@ -209,6 +203,7 @@ public class DebugpyClient {
                 pyMethod.setReturnLines(returnLines);
 
                 methods.add(pyMethod);
+                controller.storeVMMethod(pyMethod.getId(), pyMethod);
             }
             pyType.setMethods(methods);
         }
@@ -224,7 +219,6 @@ public class DebugpyClient {
         pyType.setFile(normalizedPath);
 
         fileToClassNameMap.put(pyType.getFile(), qualifiedClassName);
-        typeMapping.put(qualifiedClassName, pyType);
         controller.storeVMType(qualifiedClassName, pyType);
         return pyType;
     }
@@ -385,7 +379,7 @@ public class DebugpyClient {
     }
 
     protected Set<VMObject> getInstances(PyType pyType) {
-        pyType = typeMapping.get(pyType.getName());
+        controller.storeVMType(pyType.getName(), pyType);
         pause();
 
         var evalArgs = new EvaluateRequestArguments();
@@ -785,7 +779,7 @@ public class DebugpyClient {
     private void onConstructorCall(StackFrame currentFrame, String fullyQualifiedClassName) {
         controller.newLogMessage(this, Level.FINE, "onConstructorCall: " + fullyQualifiedClassName + "." + currentFrame.getName());
 
-        PyType pyType = typeMapping.get(fullyQualifiedClassName);
+        PyType pyType = (PyType) controller.getVMType(fullyQualifiedClassName);
 
         List<PyField> instanceVars = getInstanceVariables(currentFrame.getID(), fullyQualifiedClassName);
         pyType.setFields(instanceVars);
@@ -800,7 +794,7 @@ public class DebugpyClient {
     private void onMethodCall(StackFrame stackFrame, String fullyQualifiedClassName) {
         controller.newLogMessage(this, Level.FINE, String.format("onMethodCall: %s.%s", fullyQualifiedClassName, stackFrame.getName()));
 
-        PyType pyType = typeMapping.get(fullyQualifiedClassName);
+        PyType pyType = (PyType) controller.getVMType(fullyQualifiedClassName);
         String methodId = (String) pyType.getMethodsByName(stackFrame.getName()).getFirst().getId();
         PyMethod pyMethod = (PyMethod) controller.getVMMethod(methodId);
 
@@ -819,7 +813,7 @@ public class DebugpyClient {
     }
 
     private void onMethodExit(StackFrame stackFrame, String qualifiedClassName) {
-        PyType pyType = typeMapping.get(qualifiedClassName);
+        PyType pyType = (PyType) controller.getVMType(qualifiedClassName);
         PyMethod pyMethod = (PyMethod) pyType.getMethodsByName(stackFrame.getName()).getFirst();
         // TODO construct method call with runtime values
         controller.onMethodExit(pyMethod, pyMethod.getId());
