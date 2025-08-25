@@ -135,7 +135,7 @@ public class DebugpyClient {
     }
 
     PyType getVMType(String qualifiedClassName) {
-        if (!qualifiedClassName.contains(".")) {
+        if (qualifiedClassName.equals("Mock")) {
             return new PyType(adapter, "Mock");
         }
 
@@ -152,6 +152,11 @@ public class DebugpyClient {
         evalReq.setSeq(REQUEST_COUNTER++);
         evalReq.setArguments(evalArgs);
         var evalResp = (EvaluateResponseClass) sendRequest(evalReq);
+
+        if (!evalResp.getSuccess()) {
+            controller.newLogMessage(this, Level.WARNING, String.format("Could not find type '%s' in VM...", qualifiedClassName));
+            return pyType;
+        }
 
         String result = evalResp.getBody().getResult();
 
@@ -417,6 +422,10 @@ public class DebugpyClient {
         }
         String[] ids = result.substring(1, result.length() - 1).split(",");
         for (String id : ids) {
+            // TODO: Fix debugpy list truncation
+            if (id.trim().equals("...")) {
+                continue;
+            }
             long objId = Long.parseLong(id.trim());
             boolean missedConstructorCallForObj = !controller.existsVMObject(objId);
             if (missedConstructorCallForObj) {

@@ -1,6 +1,9 @@
 package org.tzi.use.monitor.adapter.python;
 
 public class PyEvalExBuilder {
+    
+    private static final int MODULE_NAME_IDX = 0;
+    private static final int SIMPLE_CLASS_NAME_IDX = 1;
 
     public static String getSelfVarsWithType() {
         return "\",\".join([f\"{k}:{type(v).__name__}\" for k, v in vars(self).items()])\n";
@@ -11,16 +14,11 @@ public class PyEvalExBuilder {
     }
 
     public static String getFileForClass(String qualifiedClassName) {
-        int lastDot = qualifiedClassName.lastIndexOf('.');
-        if (lastDot == -1) {
-            throw new IllegalArgumentException("Qualified class name must contain at least one dot.");
-        }
-        String moduleName = qualifiedClassName.substring(0, lastDot);
-        String className = qualifiedClassName.substring(lastDot + 1);
+        String[] classNameParts = getClassNameParts(qualifiedClassName);
         return String.format(
                 "getattr(__import__('sys').modules.get(getattr(__import__('sys').modules['%s'], '%s').__module__), '__file__', None)",
-                moduleName,
-                className
+                classNameParts[MODULE_NAME_IDX],
+                classNameParts[SIMPLE_CLASS_NAME_IDX]
         );
     }
 
@@ -29,37 +27,28 @@ public class PyEvalExBuilder {
     }
 
     public static String getInstanceIds(String qualifiedClassName) {
-        int lastDot = qualifiedClassName.lastIndexOf('.');
-        if (lastDot == -1) {
-            throw new IllegalArgumentException("Qualified class name must contain at least one dot.");
-        }
-        String moduleName = qualifiedClassName.substring(0, lastDot);
-        String className = qualifiedClassName.substring(lastDot + 1);
+        String[] classNameParts = getClassNameParts(qualifiedClassName);
         return String.format(
                 "[id(obj) for obj in __import__('gc').get_objects() if isinstance(obj, getattr(__import__('%s'), '%s'))]\n",
-                moduleName,
-                className
+                classNameParts[MODULE_NAME_IDX],
+                classNameParts[SIMPLE_CLASS_NAME_IDX]
         );
     }
 
     public static String getMethodSignaturesExp(String qualifiedClassName) {
-        int lastDot = qualifiedClassName.lastIndexOf('.');
-        String moduleName = qualifiedClassName.substring(0, lastDot);
-        String simpleClassName = qualifiedClassName.substring(lastDot + 1);
+        String[] classNameParts = getClassNameParts(qualifiedClassName);
         return String.format(
             """
             ";".join([
             f"{name}:{','.join([p.name for p in __import__('inspect').signature(m).parameters.values()])}"
             for name, m in __import__('inspect').getmembers(__import__('sys').modules['%s'].%s, __import__('inspect').isfunction)
             ])
-            """, moduleName, simpleClassName
-        );
+            """, classNameParts[MODULE_NAME_IDX], classNameParts[SIMPLE_CLASS_NAME_IDX]
+        );  
     }
 
     public static String getMethodBreakpointInfo(String qualifiedClassName, String methodName) {
-        int lastDot = qualifiedClassName.lastIndexOf('.');
-        String moduleName = qualifiedClassName.substring(0, lastDot);
-        String simpleClassName = qualifiedClassName.substring(lastDot + 1);
+        String[] classNameParts = getClassNameParts(qualifiedClassName);
         return String.format(
                 """
                         (
@@ -81,8 +70,8 @@ public class PyEvalExBuilder {
                           }
                         )(getattr(getattr(__import__('sys').modules['%s'], '%s'), '%s'))
                         """,
-                moduleName,
-                simpleClassName,
+                classNameParts[MODULE_NAME_IDX],
+                classNameParts[SIMPLE_CLASS_NAME_IDX],
                 methodName
         );
     }
@@ -92,6 +81,17 @@ public class PyEvalExBuilder {
                 objectId,
                 fieldName
         );
+    }
+    
+    private static String[] getClassNameParts(String qualifiedClassName) {
+        int lastDotIdx = qualifiedClassName.lastIndexOf('.');
+        if (lastDotIdx == -1) {
+            return new String[]{"__main__", qualifiedClassName};
+        }
+        return new String[] {
+                qualifiedClassName.substring(0, lastDotIdx),
+                qualifiedClassName.substring(lastDotIdx + 1)
+        };
     }
 
 }
