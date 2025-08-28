@@ -213,6 +213,9 @@ public class DebugpyClient {
             pyType.setMethods(methods);
         }
 
+        // Set Fields
+        setFields(pyType);
+
         // Set File
         evalArgs.setExpression(PyEvalExBuilder.getFileForClass(qualifiedClassName));
         evalReq.setSeq(REQUEST_COUNTER++);
@@ -226,6 +229,20 @@ public class DebugpyClient {
         fileToClassNameMap.put(pyType.getFile(), qualifiedClassName);
         controller.storeVMType(qualifiedClassName, pyType);
         return pyType;
+    }
+
+    private void setFields(PyType pyType) {
+        List<PyField> pyFields = new ArrayList<>();
+        for (PyMethod pyMethod : pyType.getMethods()) {
+            if (pyMethod.getName().startsWith("set_")) {
+                String fieldName = pyMethod.getName().substring(4);
+                PyField pyField = new PyField(adapter, fieldName, pyMethod.getClassName());
+                pyField.setModBreakpointLineNo(pyMethod.getStartLineNo());
+                pyField.setFile(pyMethod.getFile());
+                pyFields.add(pyField);
+            }
+        }
+        pyType.setFields(pyFields);
     }
 
     protected DAPValue getDAPValue(Long objectId, String fName) {
@@ -742,9 +759,6 @@ public class DebugpyClient {
             }
             setBreakpoints(file, breakpoints.get(file).keySet());
         }
-        if (m.getName().startsWith("set_")) {
-            registerFieldModificationInterest((PyMethod) m);
-        }
     }
 
     public void registerConstructorCallInterest(VMType vmType) {
@@ -762,16 +776,16 @@ public class DebugpyClient {
         setBreakpoints(file, breakpoints.get(file).keySet());
     }
 
-    private void registerFieldModificationInterest(PyMethod m) {
-        String file = m.getFile();
-        int startLine = m.getStartLineNo();
+    public void registerFieldModificationInterest(PyField pyField) {
+        String file = pyField.getFile();
+        Integer modBreakpointLineNo = pyField.getModBreakpointLineNo();
         if (!breakpoints.containsKey(file)) {
             Map<Integer, BreakpointType> breakpointTypeMap = new HashMap<>();
-            breakpointTypeMap.put(startLine, BreakpointType.MODIFICATION);
+            breakpointTypeMap.put(modBreakpointLineNo, BreakpointType.MODIFICATION);
             breakpoints.put(file, breakpointTypeMap);
         } else {
             Map<Integer, BreakpointType> currBps = breakpoints.get(file);
-            currBps.put(startLine, BreakpointType.MODIFICATION);
+            currBps.put(modBreakpointLineNo, BreakpointType.MODIFICATION);
         }
         setBreakpoints(file, breakpoints.get(file).keySet());
     }

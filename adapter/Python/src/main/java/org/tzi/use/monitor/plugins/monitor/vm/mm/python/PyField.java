@@ -15,12 +15,14 @@ public class PyField implements VMField {
     private String type;
     private MAttribute useAttribute;
     private MAssociationEnd useAssociationEnd;
+    private Integer modBreakpointLineNo;
+    private String file;
 
     public PyField(PythonAdapter adapter, String fieldName, String className) {
         this.adapter = adapter;
         this.fieldName = fieldName;
         this.className = className;
-        this.id = String.format("%s:%s", fieldName, className);
+        this.id = String.format("%s:%s", className, fieldName);
     }
 
     @Override
@@ -65,15 +67,34 @@ public class PyField implements VMField {
         this.type = type;
     }
 
+    public Integer getModBreakpointLineNo() {
+        return modBreakpointLineNo;
+    }
+
+    public void setModBreakpointLineNo(int modBreakpointLineNo) {
+        this.modBreakpointLineNo = modBreakpointLineNo;
+    }
+
+    public String getFile() {
+        return file;
+    }
+
+    public void setFile(String file) {
+        this.file = file;
+    }
+
     @Override
     public String toString() {
         return "PyField{" +
                 "id='" + id + '\'' +
                 ", className='" + className + '\'' +
                 ", fieldName='" + fieldName + '\'' +
+                ", adapter=" + adapter +
                 ", type='" + type + '\'' +
                 ", useAttribute=" + useAttribute +
                 ", useAssociationEnd=" + useAssociationEnd +
+                ", modBreakpointLineNo=" + modBreakpointLineNo +
+                ", file='" + file + '\'' +
                 '}';
     }
 

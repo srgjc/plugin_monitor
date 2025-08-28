@@ -1,7 +1,6 @@
 package org.tzi.use.monitor.adapter.python;
 
 import org.tzi.use.monitor.adapter.python.custom.DAPValue;
-import org.tzi.use.monitor.adapter.python.dap.*;
 import org.tzi.use.monitor.plugins.monitor.vm.mm.python.*;
 import org.tzi.use.plugins.monitor.MonitorException;
 import org.tzi.use.plugins.monitor.vm.adapter.AbstractVMAdapter;
@@ -150,6 +149,7 @@ public class PythonAdapter extends AbstractVMAdapter {
 
     @Override
     public void registerFieldModificationInterest(VMField f) {
+        debugpyClient.registerFieldModificationInterest((PyField) f);
     }
 
     @Override
