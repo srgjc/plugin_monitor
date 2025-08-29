@@ -30,6 +30,7 @@ import java.util.regex.Pattern;
  * @author Sergio Jimenez
  */
 public class DebugpyClient {
+
     private static final Pattern MEMORY_ADDR_PATTERN = Pattern.compile("0x[0-9a-fA-F]+");
 
     private static int REQUEST_COUNTER = 1;
@@ -39,10 +40,10 @@ public class DebugpyClient {
     private final BufferedWriter out;
     private final ObjectMapper mapper = new ObjectMapper();
     private CompletableFuture<DAPResponse> futureResp;
-    private CompletableFuture<DAPEvent> initEvent;
-    private CompletableFuture<DAPEvent> stoppedEvent;
+    private CompletableFuture<InitializedEventClass> initEventFuture;
+    private CompletableFuture<StoppedEventClass> pauseEventFuture;
+    private CompletableFuture<StoppedEventClass> breakpointEventFuture;
     protected boolean running = false;
-    protected final BlockingQueue<DAPEvent> eventQueue = new LinkedBlockingQueue<>();
     private final String workspace;
     private final String host;
     private final int port;
@@ -71,7 +72,7 @@ public class DebugpyClient {
     }
 
     boolean attach() {
-        initEvent = new CompletableFuture<>();
+        initEventFuture = new CompletableFuture<>();
 
         // Initialize
         var initArgs = new InitializeRequestArguments();
@@ -100,13 +101,10 @@ public class DebugpyClient {
         attachReq.setSeq(REQUEST_COUNTER++);
         sendAsyncRequest(attachReq);
 
-        // TODO wait for init event
         try {
-            System.out.println("Waiting for init event...");
-            initEvent.get();
-            System.out.println("Got init event...");
+            initEventFuture.get();
         } catch (InterruptedException | ExecutionException e) {
-            return false;
+            throw new RuntimeException(e);
         }
 
         System.out.println("Sending configuration done...");
@@ -128,7 +126,7 @@ public class DebugpyClient {
             throw new RuntimeException(e);
         }
         running = true;
-        breakpointWatcher = new java.lang.Thread(new EventHandler(), "EventManager");
+        breakpointWatcher = new java.lang.Thread(new BreakpointHandler(), "BreakpointHandler");
         breakpointWatcher.start();
         isConnected = true;
         return initResp.getSuccess();
@@ -329,7 +327,7 @@ public class DebugpyClient {
             return true;
         }
 
-        stoppedEvent = new CompletableFuture<>();
+        pauseEventFuture = new CompletableFuture<>();
 
         var pauseArgs = new PauseRequestArguments();
         pauseArgs.setThreadID(getThreadId("MainThread"));
@@ -337,15 +335,20 @@ public class DebugpyClient {
         pauseReq.setSeq(REQUEST_COUNTER++);
         pauseReq.setArguments(pauseArgs);
         var pauseResp = (PauseResponseClass) sendRequest(pauseReq);
+
+        if (!pauseResp.getSuccess()) {
+            controller.newLogMessage(this, Level.SEVERE, "Failed to pause debugpy!");
+            return false;
+        }
+
         try {
-            System.out.println("Waiting for stopped event...");
-            stoppedEvent.get();
-            System.out.println("Got stopped event. Continuing...");
+            pauseEventFuture.get();
         } catch (InterruptedException | ExecutionException e) {
             throw new RuntimeException(e);
         }
+
         running = false;
-        return pauseResp.getSuccess();
+        return true;
     }
 
     protected boolean resume() {
@@ -570,14 +573,16 @@ public class DebugpyClient {
                     }
                     if (msg instanceof DAPEvent dapEvent) {
                         if (dapEvent instanceof InitializedEventClass initializedEvent) {
-                            initEvent.complete(initializedEvent);
+                            initEventFuture.complete(initializedEvent);
                         }
-                        if (msg instanceof StoppedEventClass stopEvent) {
-                            if (stopEvent.getBody().getReason().equals("breakpoint")) {
-                                running = false;
-                                eventQueue.add(stopEvent);
-                            } else {
-                                stoppedEvent.complete(stopEvent);
+                        if (dapEvent instanceof StoppedEventClass stoppedEvent) {
+                            running = false;
+                            String reason = stoppedEvent.getBody().getReason();
+                            if (reason.equals("pause")) {
+                                pauseEventFuture.complete(stoppedEvent);
+                            }
+                            if (reason.equals("breakpoint")) {
+                                breakpointEventFuture.complete(stoppedEvent);
                             }
                         }
                     }
@@ -790,34 +795,30 @@ public class DebugpyClient {
         setBreakpoints(file, breakpoints.get(file).keySet());
     }
 
-    private class EventHandler implements Runnable {
+    private class BreakpointHandler implements Runnable {
         @Override
         public void run() {
             while (isConnected) {
                 try {
-                    DAPEvent event = eventQueue.take();
+                    breakpointEventFuture = new CompletableFuture<>();
+                    StoppedEventClass breakpointEvent = breakpointEventFuture.get();
                     if (!isConnected) {
                         return;
                     }
-                    switch (event) {
-                        case StoppedEventClass stopEvent -> {
-                            StackFrame currFrame = getCurrentFrame(Math.toIntExact(stopEvent.getBody().getThreadID()));
-                            String file = currFrame.getSource().getPath();
-                            String qualifiedClassName = fileToClassNameMap.get(file);
+                    StackFrame currFrame = getCurrentFrame(Math.toIntExact(breakpointEvent.getBody().getThreadID()));
+                    String file = currFrame.getSource().getPath();
+                    String qualifiedClassName = fileToClassNameMap.get(file);
 
-                            BreakpointType breakpointType = breakpoints.get(file).get((int) currFrame.getLine());
-                            switch (breakpointType) {
-                                case CONSTRUCTOR_CALL -> onConstructorCall(currFrame, qualifiedClassName);
-                                case METHOD_CALL -> onMethodCall(currFrame, qualifiedClassName);
-                                case METHOD_EXIT -> onMethodExit(currFrame, qualifiedClassName);
-                                case MODIFICATION -> onAttrMod(currFrame, qualifiedClassName);
-                            }
-                            // Match monitor running state
-                            resume();
-                        }
-                        default -> controller.newLogMessage(this, Level.WARNING, "Unknown event!");
+                    BreakpointType breakpointType = breakpoints.get(file).get((int) currFrame.getLine());
+                    switch (breakpointType) {
+                        case CONSTRUCTOR_CALL -> onConstructorCall(currFrame, qualifiedClassName);
+                        case METHOD_CALL -> onMethodCall(currFrame, qualifiedClassName);
+                        case METHOD_EXIT -> onMethodExit(currFrame, qualifiedClassName);
+                        case MODIFICATION -> onAttrMod(currFrame, qualifiedClassName);
                     }
-                } catch (InterruptedException e) {
+
+                    resume(); // Match monitor running state
+                } catch (InterruptedException | ExecutionException e) {
                     throw new RuntimeException(e);
                 }
             }
