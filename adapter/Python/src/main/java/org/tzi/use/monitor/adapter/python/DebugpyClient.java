@@ -296,7 +296,8 @@ public class DebugpyClient {
         return pyFields;
     }
 
-    protected boolean setBreakpoints(String file, Set<Integer> lines) {
+    protected boolean setBreakpoints(String file) {
+        Set<Integer> lines = fileToBreakpointTypeMap.get(file).keySet();
         var source = new Source();
         source.setName(file.substring(file.lastIndexOf("/") + 1));
         source.setPath(file);
@@ -746,33 +747,9 @@ public class DebugpyClient {
             String className = pyMethod.getClassName();
             List<Integer> returnLines = pyMethod.getReturnLines();
 
-            if (!fileToBreakpointTypeMap.containsKey(file)) {
-                Map<Integer, BreakpointType> lineNoToBreakpointType = new HashMap<>();
-                Map<Integer, String> lineNoToClassName = new HashMap<>();
-
-                lineNoToBreakpointType.put(startLine, BreakpointType.METHOD_CALL);
-                lineNoToClassName.put(startLine, className);
-
-                for (Integer returnLine : returnLines) {
-                    lineNoToBreakpointType.put(returnLine, BreakpointType.METHOD_EXIT);
-                    lineNoToClassName.put(returnLine, className);
-                }
-
-                fileToBreakpointTypeMap.put(file, lineNoToBreakpointType);
-                fileToClassNameMap.put(file, lineNoToClassName);
-            } else {
-                Map<Integer, BreakpointType> lineNoToBreakpointType = fileToBreakpointTypeMap.get(file);
-                Map<Integer, String> lineNoToClassName = fileToClassNameMap.get(file);
-
-                lineNoToBreakpointType.put(startLine, BreakpointType.METHOD_CALL);
-                lineNoToClassName.put(startLine, className);
-
-                for (Integer returnLine : returnLines) {
-                    lineNoToBreakpointType.put(returnLine, BreakpointType.METHOD_EXIT);
-                    lineNoToClassName.put(returnLine, className);
-                }
-            }
-            setBreakpoints(file, fileToBreakpointTypeMap.get(file).keySet());
+            updateInternalBreakpointMappings(file, className, List.of(startLine), BreakpointType.METHOD_CALL);
+            updateInternalBreakpointMappings(file, className, returnLines, BreakpointType.METHOD_EXIT);
+            setBreakpoints(file);
         }
     }
 
@@ -782,23 +759,8 @@ public class DebugpyClient {
         int endLineNo = method.getEndLineNo();
         String className = method.getClassName();
 
-        if (!fileToBreakpointTypeMap.containsKey(file)) {
-            Map<Integer, BreakpointType> lineNoToBreakpointType = new HashMap<>();
-            Map<Integer, String> lineNoToClassName = new HashMap<>();
-
-            lineNoToBreakpointType.put(endLineNo, BreakpointType.CONSTRUCTOR_CALL);
-            lineNoToClassName.put(endLineNo, className);
-
-            fileToBreakpointTypeMap.put(file, lineNoToBreakpointType);
-            fileToClassNameMap.put(file, lineNoToClassName);
-        } else {
-            Map<Integer, BreakpointType> lineNoToBreakpointType = fileToBreakpointTypeMap.get(file);
-            Map<Integer, String> lineNoToClassName = fileToClassNameMap.get(file);
-
-            lineNoToBreakpointType.put(endLineNo, BreakpointType.CONSTRUCTOR_CALL);
-            lineNoToClassName.put(endLineNo, className);
-        }
-        setBreakpoints(file, fileToBreakpointTypeMap.get(file).keySet());
+        updateInternalBreakpointMappings(file, className, List.of(endLineNo), BreakpointType.CONSTRUCTOR_CALL);
+        setBreakpoints(file);
     }
 
     public void registerFieldModificationInterest(PyField pyField) {
@@ -806,12 +768,19 @@ public class DebugpyClient {
         Integer modBreakpointLineNo = pyField.getModBreakpointLineNo();
         String className = pyField.getClassName();
 
+        updateInternalBreakpointMappings(file, className, List.of(modBreakpointLineNo), BreakpointType.MODIFICATION);
+        setBreakpoints(file);
+    }
+
+    private void updateInternalBreakpointMappings(String file, String className, List<Integer> lineNos, BreakpointType breakpointType) {
         if (!fileToBreakpointTypeMap.containsKey(file)) {
             Map<Integer, BreakpointType> lineNoToBreakpointType = new HashMap<>();
             Map<Integer, String> lineNoToClassName = new HashMap<>();
 
-            lineNoToBreakpointType.put(modBreakpointLineNo, BreakpointType.MODIFICATION);
-            lineNoToClassName.put(modBreakpointLineNo, className);
+            for (Integer lineNo : lineNos) {
+                lineNoToBreakpointType.put(lineNo, breakpointType);
+                lineNoToClassName.put(lineNo, className);
+            }
 
             fileToBreakpointTypeMap.put(file, lineNoToBreakpointType);
             fileToClassNameMap.put(file, lineNoToClassName);
@@ -819,10 +788,11 @@ public class DebugpyClient {
             Map<Integer, BreakpointType> lineNoToBreakpointType = fileToBreakpointTypeMap.get(file);
             Map<Integer, String> lineNoToClassName = fileToClassNameMap.get(file);
 
-            lineNoToBreakpointType.put(modBreakpointLineNo, BreakpointType.MODIFICATION);
-            lineNoToClassName.put(modBreakpointLineNo, className);
+            for (Integer lineNo : lineNos) {
+                lineNoToBreakpointType.put(lineNo, breakpointType);
+                lineNoToClassName.put(lineNo, className);
+            }
         }
-        setBreakpoints(file, fileToBreakpointTypeMap.get(file).keySet());
     }
 
     private class BreakpointHandler implements Runnable {
