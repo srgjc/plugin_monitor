@@ -124,7 +124,7 @@ public class PythonAdapter extends AbstractVMAdapter {
 
     @Override
     public void registerOperationCallInterest(VMMethod m) {
-        debugpyClient.registerOperationCallInterest(m);
+        debugpyClient.registerOperationCallInterest((PyMethod) m);
     }
 
     @Override
@@ -144,7 +144,7 @@ public class PythonAdapter extends AbstractVMAdapter {
 
     @Override
     public void registerConstructorCallInterest(VMType vmType) {
-        debugpyClient.registerConstructorCallInterest(vmType);
+        debugpyClient.registerConstructorCallInterest((PyType) vmType);
     }
 
     @Override

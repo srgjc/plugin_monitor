@@ -8,9 +8,7 @@ import org.tzi.use.monitor.adapter.python.dap.*;
 import org.tzi.use.monitor.adapter.python.dap.Thread;
 import org.tzi.use.monitor.plugins.monitor.vm.mm.python.*;
 import org.tzi.use.plugins.monitor.Monitor;
-import org.tzi.use.plugins.monitor.vm.mm.VMMethod;
 import org.tzi.use.plugins.monitor.vm.mm.VMObject;
-import org.tzi.use.plugins.monitor.vm.mm.VMType;
 import org.tzi.use.uml.ocl.type.TupleType;
 import org.tzi.use.uml.ocl.type.Type;
 import org.tzi.use.uml.ocl.type.TypeFactory;
@@ -49,9 +47,9 @@ public class DebugpyClient {
     private final int port;
     private final PythonAdapter adapter;
     private boolean isConnected;
-    private Map<String, Map<Integer, BreakpointType>> breakpoints;
+    private Map<String, Map<Integer, BreakpointType>> fileToBreakpointTypeMap;
+    private Map<String, Map<Integer, String>> fileToClassNameMap;
     private java.lang.Thread breakpointWatcher;
-    private Map<String, String> fileToClassNameMap;
     private Monitor.Controller controller;
 
     DebugpyClient(String host, int port, String workspace,
@@ -64,7 +62,7 @@ public class DebugpyClient {
         this.port = port;
         this.controller = controller;
 
-        breakpoints = new HashMap<>();
+        fileToBreakpointTypeMap = new HashMap<>();
         fileToClassNameMap = new HashMap<>();
 
         this.adapter = adapter;
@@ -224,7 +222,6 @@ public class DebugpyClient {
         System.out.println("SETTING FILE TO: " + normalizedPath);
         pyType.setFile(normalizedPath);
 
-        fileToClassNameMap.put(pyType.getFile(), qualifiedClassName);
         controller.storeVMType(qualifiedClassName, pyType);
         return pyType;
     }
@@ -742,57 +739,90 @@ public class DebugpyClient {
         return res;
     }
 
-    public void registerOperationCallInterest(VMMethod m) {
-        if (!m.getName().equals("__init__")) {
-            PyMethod method = (PyMethod) m;
-            String file = method.getFile();
-            int startLine = method.getStartLineNo();
-            List<Integer> returnLines = method.getReturnLines();
-            if (!breakpoints.containsKey(file)) {
-                Map<Integer, BreakpointType> breakpointTypes = new HashMap<>();
-                breakpointTypes.put(startLine, BreakpointType.METHOD_CALL);
+    public void registerOperationCallInterest(PyMethod pyMethod) {
+        if (!pyMethod.getName().equals("__init__")) {
+            String file = pyMethod.getFile();
+            int startLine = pyMethod.getStartLineNo();
+            String className = pyMethod.getClassName();
+            List<Integer> returnLines = pyMethod.getReturnLines();
+
+            if (!fileToBreakpointTypeMap.containsKey(file)) {
+                Map<Integer, BreakpointType> lineNoToBreakpointType = new HashMap<>();
+                Map<Integer, String> lineNoToClassName = new HashMap<>();
+
+                lineNoToBreakpointType.put(startLine, BreakpointType.METHOD_CALL);
+                lineNoToClassName.put(startLine, className);
+
                 for (Integer returnLine : returnLines) {
-                    breakpointTypes.put(returnLine, BreakpointType.METHOD_EXIT);
+                    lineNoToBreakpointType.put(returnLine, BreakpointType.METHOD_EXIT);
+                    lineNoToClassName.put(returnLine, className);
                 }
-                breakpoints.put(file, breakpointTypes);
+
+                fileToBreakpointTypeMap.put(file, lineNoToBreakpointType);
+                fileToClassNameMap.put(file, lineNoToClassName);
             } else {
-                Map<Integer, BreakpointType> lineBreakpointTypes = breakpoints.get(file);
-                lineBreakpointTypes.put(startLine, BreakpointType.METHOD_CALL);
+                Map<Integer, BreakpointType> lineNoToBreakpointType = fileToBreakpointTypeMap.get(file);
+                Map<Integer, String> lineNoToClassName = fileToClassNameMap.get(file);
+
+                lineNoToBreakpointType.put(startLine, BreakpointType.METHOD_CALL);
+                lineNoToClassName.put(startLine, className);
+
                 for (Integer returnLine : returnLines) {
-                    lineBreakpointTypes.put(returnLine, BreakpointType.METHOD_EXIT);
+                    lineNoToBreakpointType.put(returnLine, BreakpointType.METHOD_EXIT);
+                    lineNoToClassName.put(returnLine, className);
                 }
             }
-            setBreakpoints(file, breakpoints.get(file).keySet());
+            setBreakpoints(file, fileToBreakpointTypeMap.get(file).keySet());
         }
     }
 
-    public void registerConstructorCallInterest(VMType vmType) {
-        PyMethod method = ((PyMethod) vmType.getMethodsByName("__init__").getFirst());
+    public void registerConstructorCallInterest(PyType pyType) {
+        PyMethod method = ((PyMethod) pyType.getMethodsByName("__init__").getFirst());
         String file = method.getFile();
         int endLineNo = method.getEndLineNo();
-        if (!breakpoints.containsKey(file)) {
-            Map<Integer, BreakpointType> breakpointTypeMap = new HashMap<>();
-            breakpointTypeMap.put(endLineNo, BreakpointType.CONSTRUCTOR_CALL);
-            breakpoints.put(file, breakpointTypeMap);
+        String className = method.getClassName();
+
+        if (!fileToBreakpointTypeMap.containsKey(file)) {
+            Map<Integer, BreakpointType> lineNoToBreakpointType = new HashMap<>();
+            Map<Integer, String> lineNoToClassName = new HashMap<>();
+
+            lineNoToBreakpointType.put(endLineNo, BreakpointType.CONSTRUCTOR_CALL);
+            lineNoToClassName.put(endLineNo, className);
+
+            fileToBreakpointTypeMap.put(file, lineNoToBreakpointType);
+            fileToClassNameMap.put(file, lineNoToClassName);
         } else {
-            Map<Integer, BreakpointType> currBps = breakpoints.get(file);
-            currBps.put(endLineNo, BreakpointType.CONSTRUCTOR_CALL);
+            Map<Integer, BreakpointType> lineNoToBreakpointType = fileToBreakpointTypeMap.get(file);
+            Map<Integer, String> lineNoToClassName = fileToClassNameMap.get(file);
+
+            lineNoToBreakpointType.put(endLineNo, BreakpointType.CONSTRUCTOR_CALL);
+            lineNoToClassName.put(endLineNo, className);
         }
-        setBreakpoints(file, breakpoints.get(file).keySet());
+        setBreakpoints(file, fileToBreakpointTypeMap.get(file).keySet());
     }
 
     public void registerFieldModificationInterest(PyField pyField) {
         String file = pyField.getFile();
         Integer modBreakpointLineNo = pyField.getModBreakpointLineNo();
-        if (!breakpoints.containsKey(file)) {
-            Map<Integer, BreakpointType> breakpointTypeMap = new HashMap<>();
-            breakpointTypeMap.put(modBreakpointLineNo, BreakpointType.MODIFICATION);
-            breakpoints.put(file, breakpointTypeMap);
+        String className = pyField.getClassName();
+
+        if (!fileToBreakpointTypeMap.containsKey(file)) {
+            Map<Integer, BreakpointType> lineNoToBreakpointType = new HashMap<>();
+            Map<Integer, String> lineNoToClassName = new HashMap<>();
+
+            lineNoToBreakpointType.put(modBreakpointLineNo, BreakpointType.MODIFICATION);
+            lineNoToClassName.put(modBreakpointLineNo, className);
+
+            fileToBreakpointTypeMap.put(file, lineNoToBreakpointType);
+            fileToClassNameMap.put(file, lineNoToClassName);
         } else {
-            Map<Integer, BreakpointType> currBps = breakpoints.get(file);
-            currBps.put(modBreakpointLineNo, BreakpointType.MODIFICATION);
+            Map<Integer, BreakpointType> lineNoToBreakpointType = fileToBreakpointTypeMap.get(file);
+            Map<Integer, String> lineNoToClassName = fileToClassNameMap.get(file);
+
+            lineNoToBreakpointType.put(modBreakpointLineNo, BreakpointType.MODIFICATION);
+            lineNoToClassName.put(modBreakpointLineNo, className);
         }
-        setBreakpoints(file, breakpoints.get(file).keySet());
+        setBreakpoints(file, fileToBreakpointTypeMap.get(file).keySet());
     }
 
     private class BreakpointHandler implements Runnable {
@@ -806,10 +836,11 @@ public class DebugpyClient {
                         return;
                     }
                     StackFrame currFrame = getCurrentFrame(Math.toIntExact(breakpointEvent.getBody().getThreadID()));
+                    int currLineNo = (int) currFrame.getLine();
                     String file = currFrame.getSource().getPath();
-                    String qualifiedClassName = fileToClassNameMap.get(file);
+                    String qualifiedClassName = fileToClassNameMap.get(file).get(currLineNo);
 
-                    BreakpointType breakpointType = breakpoints.get(file).get((int) currFrame.getLine());
+                    BreakpointType breakpointType = fileToBreakpointTypeMap.get(file).get(currLineNo);
                     switch (breakpointType) {
                         case CONSTRUCTOR_CALL -> onConstructorCall(currFrame, qualifiedClassName);
                         case METHOD_CALL -> onMethodCall(currFrame, qualifiedClassName);
