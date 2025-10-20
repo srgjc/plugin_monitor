@@ -1472,7 +1472,19 @@ public class Monitor implements ChangeListener {
 		public void storeVMMethod(Object key, VMMethod type) {
 			adapterMethodMapping.put(key, type);
 		}
-		
+
+		public VMField getVMField(Object key) {
+			return adapterFieldMapping.get(key);
+		}
+
+		public boolean existsVMField(Object key) {
+			return adapterFieldMapping.containsKey(key);
+		}
+
+		public void storeVMField(Object key, VMField field) {
+			adapterFieldMapping.put(key, field);
+		}
+
 		/**
 		 * Needs to be called if a method is called
 		 * which the monitor registered for.

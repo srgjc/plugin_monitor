@@ -109,18 +109,7 @@ public class PyMethod implements VMMethod {
 
     @Override
     public String toString() {
-        return "PyMethod{" +
-                "id='" + id + '\'' +
-                ", name='" + name + '\'' +
-                ", className='" + className + '\'' +
-                ", argumentNames=" + argumentNames +
-                ", argumentTypes=" + argumentTypes +
-                ", file='" + file + '\'' +
-                ", startLineNo=" + startLineNo +
-                ", endLineNo=" + endLineNo +
-                ", returnLines=" + returnLines +
-                ", useOperation=" + useOperation +
-                '}';
+        return id;
     }
 
 }

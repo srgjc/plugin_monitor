@@ -5,14 +5,6 @@ public class PyEvalExBuilder {
     private static final int MODULE_NAME_IDX = 0;
     private static final int SIMPLE_CLASS_NAME_IDX = 1;
 
-    public static String getSelfVarsWithType() {
-        return "\",\".join([f\"{k}:{type(v).__name__}\" for k, v in vars(self).items()])\n";
-    }
-
-    public static String getVarsByObjId(long objId) {
-        return String.format("\",\".join([f\"{k}:{type(v).__name__}\" for o in __import__('gc').get_objects() if id(o)==%s for k,v in vars(o).items()])\n", objId);
-    }
-
     public static String getFileForClass(String qualifiedClassName) {
         String[] classNameParts = getClassNameParts(qualifiedClassName);
         return String.format(
@@ -35,16 +27,13 @@ public class PyEvalExBuilder {
         );
     }
 
-    public static String getMethodSignaturesExp(String qualifiedClassName) {
-        String[] classNameParts = getClassNameParts(qualifiedClassName);
+    public static String getMethodSig(String fqcn, String methodName) {
+        String[] classNameParts = getClassNameParts(fqcn);
         return String.format(
-            """
-            ";".join([
-            f"{name}:{','.join([p.name for p in __import__('inspect').signature(m).parameters.values()])}"
-            for name, m in __import__('inspect').getmembers(__import__('sys').modules['%s'].%s, __import__('inspect').isfunction)
-            ])
-            """, classNameParts[MODULE_NAME_IDX], classNameParts[SIMPLE_CLASS_NAME_IDX]
-        );  
+                """
+                ','.join([p.name for p in __import__('inspect').signature(getattr(__import__('sys').modules['%s'], '%s').%s).parameters.values()])
+                """, classNameParts[MODULE_NAME_IDX], classNameParts[SIMPLE_CLASS_NAME_IDX], methodName
+        );
     }
 
     public static String getMethodBreakpointInfo(String qualifiedClassName, String methodName) {

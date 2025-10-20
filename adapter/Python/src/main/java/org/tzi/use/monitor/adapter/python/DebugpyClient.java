@@ -8,6 +8,8 @@ import org.tzi.use.monitor.adapter.python.dap.*;
 import org.tzi.use.monitor.adapter.python.dap.Thread;
 import org.tzi.use.monitor.plugins.monitor.vm.mm.python.*;
 import org.tzi.use.plugins.monitor.Monitor;
+import org.tzi.use.plugins.monitor.vm.mm.VMField;
+import org.tzi.use.plugins.monitor.vm.mm.VMMethod;
 import org.tzi.use.plugins.monitor.vm.mm.VMObject;
 import org.tzi.use.uml.ocl.type.TupleType;
 import org.tzi.use.uml.ocl.type.Type;
@@ -130,114 +132,115 @@ public class DebugpyClient {
         return initResp.getSuccess();
     }
 
-    PyType getVMType(String qualifiedClassName) {
-        if (qualifiedClassName.equals("Mock")) {
+    PyType getVMType(String fqcn) {
+        if (controller.existsVMType(fqcn)) {
+            controller.getVMType(fqcn);
+        }
+
+        if (fqcn.equals("Mock")) {
             return new PyType(adapter, "Mock");
         }
 
+        // TODO: Comment why pause here is needed
         pause();
 
-        PyType pyType = new PyType(adapter, qualifiedClassName);
+        PyType pyType = new PyType(adapter, fqcn);
 
-        // Set Methods
+        // Set File
         var evalArgs = new EvaluateRequestArguments();
         evalArgs.setContext("watch");
         evalArgs.setFrameID((long) getCurrentFrameId(getThreadId("MainThread")));
-        evalArgs.setExpression(PyEvalExBuilder.getMethodSignaturesExp(qualifiedClassName));
+        evalArgs.setExpression(PyEvalExBuilder.getFileForClass(fqcn));
         var evalReq = new EvaluateRequestClass();
         evalReq.setSeq(REQUEST_COUNTER++);
         evalReq.setArguments(evalArgs);
         var evalResp = (EvaluateResponseClass) sendRequest(evalReq);
 
-        if (!evalResp.getSuccess()) {
-            controller.newLogMessage(this, Level.WARNING, String.format("Could not find type '%s' in VM...", qualifiedClassName));
-            return pyType;
-        }
-
-        String result = evalResp.getBody().getResult();
-
-        if (!result.equals("''")) {
-            List<PyMethod> methods = new LinkedList<>();
-
-            String escapedResult = result.substring(1, result.length() - 1);
-
-            String[] methodSigs = escapedResult.split(";");
-
-            for (String methodSig : methodSigs) {
-                String[] sigParts = methodSig.split(":");
-                PyMethod pyMethod = new PyMethod(adapter, sigParts[0], qualifiedClassName);
-
-                List<String> argNames = new ArrayList<>();
-                List<String> argTypes = new ArrayList<>();
-                for (String argName : sigParts[1].split(",")) {
-                    if (argName.equals("self")) {
-                        continue;
-                    }
-                    argNames.add(argName);
-                    argTypes.add("Mock");
-                }
-                pyMethod.setArgumentNames(argNames);
-                pyMethod.setArgumentTypes(argTypes);
-
-                // Set line nos and filename
-                evalArgs.setExpression(PyEvalExBuilder.getMethodBreakpointInfo(qualifiedClassName, pyMethod.getName()));
-                evalReq.setSeq(REQUEST_COUNTER++);
-                evalResp = (EvaluateResponseClass) sendRequest(evalReq);
-
-                String json = evalResp.getBody().getResult().replace("'", "\"");
-                ObjectMapper mapper = new ObjectMapper();
-                JsonNode root;
-                try {
-                    root = mapper.readTree(json);
-                } catch (JsonProcessingException e) {
-                    return null;
-                }
-                String fileRaw = root.get("file").asText();
-                String normalizedFile = Paths.get(fileRaw).normalize().toString();
-                pyMethod.setFile(normalizedFile);
-                pyMethod.setStartLineNo(root.get("start").asInt());
-                pyMethod.setEndLineNo(root.get("end").asInt());
-                List<Integer> returnLines = new ArrayList<>();
-                for (JsonNode r : root.get("returns")) {
-                    returnLines.add(r.asInt());
-                }
-                pyMethod.setReturnLines(returnLines);
-
-                methods.add(pyMethod);
-                controller.storeVMMethod(pyMethod.getId(), pyMethod);
-            }
-            pyType.setMethods(methods);
-        }
-
-        // Set Fields
-        setFields(pyType);
-
-        // Set File
-        evalArgs.setExpression(PyEvalExBuilder.getFileForClass(qualifiedClassName));
-        evalReq.setSeq(REQUEST_COUNTER++);
-        evalResp = (EvaluateResponseClass) sendRequest(evalReq);
-
         String file = evalResp.getBody().getResult();
         String normalizedPath = Path.of(file).normalize().toString().replace("'", "");
-        System.out.println("SETTING FILE TO: " + normalizedPath);
         pyType.setFile(normalizedPath);
 
-        controller.storeVMType(qualifiedClassName, pyType);
+        controller.storeVMType(fqcn, pyType);
         return pyType;
     }
 
-    private void setFields(PyType pyType) {
-        List<PyField> pyFields = new ArrayList<>();
-        for (PyMethod pyMethod : pyType.getMethods()) {
-            if (pyMethod.getName().startsWith("set_")) {
-                String fieldName = pyMethod.getName().substring(4);
-                PyField pyField = new PyField(adapter, fieldName, pyMethod.getClassName());
-                pyField.setModBreakpointLineNo(pyMethod.getStartLineNo());
-                pyField.setFile(pyMethod.getFile());
-                pyFields.add(pyField);
-            }
+    protected VMMethod getVMMethod(String fqcn, String methodName) {
+        String methodId = String.format("%s:%s", fqcn, methodName);
+        if (controller.existsVMMethod(methodId)) {
+            return controller.getVMMethod(methodId);
         }
-        pyType.setFields(pyFields);
+
+        var evalArgs = new EvaluateRequestArguments();
+        evalArgs.setContext("watch");
+        evalArgs.setFrameID((long) getCurrentFrameId(getThreadId("MainThread")));
+        evalArgs.setExpression(PyEvalExBuilder.getMethodSig(fqcn, methodName));
+        var evalReq = new EvaluateRequestClass();
+        evalReq.setSeq(REQUEST_COUNTER++);
+        evalReq.setArguments(evalArgs);
+        var evalResp = (EvaluateResponseClass) sendRequest(evalReq);
+
+        var resultBody = evalResp.getBody();
+
+        if (!evalResp.getSuccess() || resultBody.getResult().equals("''")) {
+            return null;
+        }
+
+        PyMethod pyMethod = new PyMethod(adapter, methodName,fqcn);
+
+        String escapedResult = resultBody.getResult().substring(1, resultBody.getResult().length() - 1);
+
+        List<String> argNames = new ArrayList<>();
+        List<String> argTypes = new ArrayList<>();
+        for (String argName : escapedResult.split(",")) {
+            if (argName.equals("self")) {
+                continue;
+            }
+            argNames.add(argName);
+            argTypes.add("Mock");
+        }
+        pyMethod.setArgumentNames(argNames);
+        pyMethod.setArgumentTypes(argTypes);
+
+        // Set line nos and filename
+        evalArgs.setExpression(PyEvalExBuilder.getMethodBreakpointInfo(fqcn, methodName));
+        evalReq.setSeq(REQUEST_COUNTER++);
+        evalResp = (EvaluateResponseClass) sendRequest(evalReq);
+
+        String json = evalResp.getBody().getResult().replace("'", "\"");
+        ObjectMapper mapper = new ObjectMapper();
+        JsonNode root;
+        try {
+            root = mapper.readTree(json);
+        } catch (JsonProcessingException e) {
+            return null;
+        }
+        String fileRaw = root.get("file").asText();
+        String normalizedFile = Paths.get(fileRaw).normalize().toString();
+        pyMethod.setFile(normalizedFile);
+        pyMethod.setStartLineNo(root.get("start").asInt());
+        pyMethod.setEndLineNo(root.get("end").asInt());
+        List<Integer> returnLines = new ArrayList<>();
+        for (JsonNode r : root.get("returns")) {
+            returnLines.add(r.asInt());
+        }
+        pyMethod.setReturnLines(returnLines);
+
+        controller.storeVMMethod(pyMethod.getId(), pyMethod);
+        return pyMethod;
+    }
+
+    protected VMField getVMField(String fqcn, String fieldName) {
+        String fId = String.format("%s:%s", fqcn, fieldName);
+        if (controller.existsVMField(fId)) {
+            return controller.getVMField(fId);
+        }
+        PyField pyField = null;
+        PyMethod initMethod = (PyMethod) getVMMethod(fqcn, "__init__");
+        if (initMethod != null && initMethod.getArgumentNames().stream().anyMatch(argName -> argName.equals(fieldName))) {
+            pyField = new PyField(adapter, fieldName, fqcn);
+            controller.storeVMField(pyField.getId(), pyField);
+        }
+        return pyField;
     }
 
     protected DAPValue getDAPValue(Long objectId, String fName) {
@@ -250,50 +253,6 @@ public class DebugpyClient {
         evalReq.setArguments(evalArgs);
         var evalResp = (EvaluateResponseClass) sendRequest(evalReq);
         return new DAPValue(evalResp.getBody().getResult(), evalResp.getBody().getType(), evalResp.getBody().getVariablesReference());
-    }
-
-    protected List<PyField> getInstanceVariables(long objId, long currFrameId, String className) {
-        var evalArgs = new EvaluateRequestArguments();
-        evalArgs.setExpression(PyEvalExBuilder.getVarsByObjId(objId));
-        evalArgs.setFrameID(currFrameId);
-        evalArgs.setContext("watch");
-        var evalReq = new EvaluateRequestClass();
-        evalReq.setSeq(REQUEST_COUNTER++);
-        evalReq.setArguments(evalArgs);
-        EvaluateResponseClass evalResp = (EvaluateResponseClass) sendRequest(evalReq);
-
-        return getFieldsFromVarsResp(evalResp, className);
-    }
-
-    protected List<PyField> getInstanceVariables(long currFrameId, String className) {
-        var evalArgs = new EvaluateRequestArguments();
-        evalArgs.setExpression(PyEvalExBuilder.getSelfVarsWithType());
-        evalArgs.setFrameID(currFrameId);
-        evalArgs.setContext("watch");
-        var evalReq = new EvaluateRequestClass();
-        evalReq.setSeq(REQUEST_COUNTER++);
-        evalReq.setArguments(evalArgs);
-        EvaluateResponseClass evalResp = (EvaluateResponseClass) sendRequest(evalReq);
-
-        return getFieldsFromVarsResp(evalResp, className);
-    }
-
-    private List<PyField> getFieldsFromVarsResp(EvaluateResponseClass varsResponse, String className) {
-        List<PyField> pyFields = new ArrayList<>();
-        String result = varsResponse.getBody().getResult();
-        if (!result.equals("''")) {
-            String vars = result.substring(1, result.length() - 1);
-            String[] fields = vars.split(",");
-            for (String field : fields) {
-                String[] fieldParts = field.split(":");
-                String fieldName = fieldParts[0];
-                String fieldType = fieldParts[1];
-                PyField pyField = new PyField(adapter, fieldName, className);
-                pyField.setType(fieldType);
-                pyFields.add(pyField);
-            }
-        }
-        return pyFields;
     }
 
     protected boolean setBreakpoints(String file) {
@@ -445,11 +404,6 @@ public class DebugpyClient {
                 continue;
             }
             long objId = Long.parseLong(id.trim());
-            boolean missedConstructorCallForObj = !controller.existsVMObject(objId);
-            if (missedConstructorCallForObj) {
-                List<PyField> instanceVars = getInstanceVariables(objId, frameId, pyType.getName());
-                pyType.setFields(instanceVars);
-            }
             PyObject pyObject = new PyObject(adapter, objId, pyType);
             objs.add(pyObject);
         }
@@ -740,7 +694,17 @@ public class DebugpyClient {
         return res;
     }
 
-    public void registerOperationCallInterest(PyMethod pyMethod) {
+    public boolean registerConstructorCallInterest(PyType pyType) {
+        PyMethod method = ((PyMethod) pyType.getMethodsByName("__init__").getFirst());
+        String file = method.getFile();
+        int endLineNo = method.getEndLineNo();
+        String className = method.getClassName();
+
+        updateInternalBreakpointMappings(file, className, List.of(endLineNo), BreakpointType.CONSTRUCTOR_CALL);
+        return setBreakpoints(file);
+    }
+
+    public boolean registerOperationCallInterest(PyMethod pyMethod) {
         if (!pyMethod.getName().equals("__init__")) {
             String file = pyMethod.getFile();
             int startLine = pyMethod.getStartLineNo();
@@ -749,27 +713,22 @@ public class DebugpyClient {
 
             updateInternalBreakpointMappings(file, className, List.of(startLine), BreakpointType.METHOD_CALL);
             updateInternalBreakpointMappings(file, className, returnLines, BreakpointType.METHOD_EXIT);
-            setBreakpoints(file);
+            return setBreakpoints(file);
         }
+        return true;
     }
 
-    public void registerConstructorCallInterest(PyType pyType) {
-        PyMethod method = ((PyMethod) pyType.getMethodsByName("__init__").getFirst());
-        String file = method.getFile();
-        int endLineNo = method.getEndLineNo();
-        String className = method.getClassName();
-
-        updateInternalBreakpointMappings(file, className, List.of(endLineNo), BreakpointType.CONSTRUCTOR_CALL);
-        setBreakpoints(file);
-    }
-
-    public void registerFieldModificationInterest(PyField pyField) {
-        String file = pyField.getFile();
-        Integer modBreakpointLineNo = pyField.getModBreakpointLineNo();
-        String className = pyField.getClassName();
-
-        updateInternalBreakpointMappings(file, className, List.of(modBreakpointLineNo), BreakpointType.MODIFICATION);
-        setBreakpoints(file);
+    public boolean registerFieldModificationInterest(PyField pyField) {
+        String fqcn = pyField.getClassName();
+        String fName = pyField.getName();
+        String setterName = String.format("set_%s", fName);
+        PyMethod pyMethod = (PyMethod) getVMMethod(fqcn, setterName);
+        if (pyMethod == null) {
+            return false;
+        }
+        String file = pyMethod.getFile();
+        updateInternalBreakpointMappings(file, fqcn, List.of(pyMethod.getStartLineNo()), BreakpointType.MODIFICATION);
+        return setBreakpoints(file);
     }
 
     private void updateInternalBreakpointMappings(String file, String className, List<Integer> lineNos, BreakpointType breakpointType) {
@@ -830,13 +789,7 @@ public class DebugpyClient {
         controller.newLogMessage(this, Level.FINE, "onConstructorCall: " + fullyQualifiedClassName + "." + currentFrame.getName());
 
         PyType pyType = (PyType) controller.getVMType(fullyQualifiedClassName);
-
-        List<PyField> instanceVars = getInstanceVariables(currentFrame.getID(), fullyQualifiedClassName);
-        pyType.setFields(instanceVars);
-
-        PyObject pyObject = new PyObject(adapter,
-                getSelfId(currentFrame.getID()),
-                pyType);
+        PyObject pyObject = new PyObject(adapter, getSelfId(currentFrame.getID()), pyType);
 
         controller.onNewVMObject(pyObject);
     }

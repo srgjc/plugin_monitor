@@ -28,15 +28,6 @@ public class PythonAdapter extends AbstractVMAdapter {
     private String workspace;
     private DebugpyClient debugpyClient;
 
-    public Set<VMObject> readInstances(PyType pyType) {
-        return debugpyClient.getInstances(pyType);
-    }
-
-    public Value getUSEValue(long objId, String fName) {
-        DAPValue dapValue = debugpyClient.getDAPValue(objId, fName);
-        return debugpyClient.getUSEValue(dapValue);
-    }
-
     @Override
     protected void validateSettings() throws InvalidAdapterConfiguration {
         List<VMAdapterSetting> settings = getSettings();
@@ -71,7 +62,7 @@ public class PythonAdapter extends AbstractVMAdapter {
     protected void createSettings(List<VMAdapterSetting> settings) {
         settings.add(SETTING_HOST_IDX, new VMAdapterSetting("Host", "localhost"));
         settings.add(SETTING_PORT_IDX, new VMAdapterSetting("Port", "5678"));
-        settings.add(SETTING_WORKSPACE_IDX, new VMAdapterSetting("SUM root dir", "/home/serj/git/uni/dpy-server"));
+        settings.add(SETTING_WORKSPACE_IDX, new VMAdapterSetting("SUM root dir", "/Users/serj/git/uni/dpy-server"));
     }
 
     @Override
@@ -102,19 +93,65 @@ public class PythonAdapter extends AbstractVMAdapter {
         debugpyClient.stop();
     }
 
-    @Override
-    public VMType getVMType(String qualifiedClassName) {
-        return debugpyClient.getVMType(qualifiedClassName);
+    public Set<VMObject> readInstances(PyType pyType) {
+        return debugpyClient.getInstances(pyType);
+    }
+
+    public Value getUSEValue(long objId, String fName) {
+        DAPValue dapValue = debugpyClient.getDAPValue(objId, fName);
+        return debugpyClient.getUSEValue(dapValue);
     }
 
     @Override
-    public void registerClassPrepareEvent(String javaClassName) {
+    public VMType getVMType(String fqcn) {
+        controller.newLogMessage(this, Level.FINE, String.format("Getting runtime type '%s'...", fqcn));
+        VMType vmType = debugpyClient.getVMType(fqcn);
+        if (vmType == null) {
+            controller.newLogMessage(this, Level.WARNING, String.format("Could not find runtime type '%s'!", fqcn));
+        }
+        return vmType;
+    }
 
+    public VMMethod getVMMethod(String fqcn, String methodName) {
+        controller.newLogMessage(this, Level.FINE, String.format("Getting runtime method '%s' for type '%s'...", methodName, fqcn));
+        VMMethod vmMethod = debugpyClient.getVMMethod(fqcn, methodName);
+        if (vmMethod == null) {
+            controller.newLogMessage(this, Level.WARNING, String.format("Could not find runtime method '%s' for type '%s'!", methodName, fqcn));
+        }
+        return vmMethod;
+    }
+
+    public VMField getVMField(String fqcn, String fieldName) {
+        controller.newLogMessage(this, Level.FINE, String.format("Getting runtime field '%s' for type '%s'...", fieldName, fqcn));
+        VMField vmField = debugpyClient.getVMField(fqcn, fieldName);
+        if (vmField == null) {
+            controller.newLogMessage(this, Level.WARNING, String.format("Could not get runtime field '%s' for type '%s'!", fieldName, fqcn));
+        }
+        return vmField;
     }
 
     @Override
-    public void unregisterClassPrepareInterest(Object adapterEventInformation) {
+    public void registerConstructorCallInterest(VMType vmType) {
+        controller.newLogMessage(this, Level.FINE, String.format("Registering constructor call interest for type '%s'...", vmType));
+        if (!debugpyClient.registerConstructorCallInterest((PyType) vmType)) {
+            controller.newLogMessage(this, Level.WARNING, String.format("Could not register constructor call interestest for type '%s'!", vmType));
+        }
+    }
 
+    @Override
+    public void registerOperationCallInterest(VMMethod vmMethod) {
+        controller.newLogMessage(this, Level.FINE, String.format("Registering operation call interest for '%s'...", vmMethod));
+        if (!debugpyClient.registerOperationCallInterest((PyMethod) vmMethod)) {
+            controller.newLogMessage(this, Level.WARNING, String.format("Could not register operation call interestest for '%s'!", vmMethod));
+        }
+    }
+
+    @Override
+    public void registerFieldModificationInterest(VMField vmField) {
+        controller.newLogMessage(this, Level.FINE, String.format("Registering field modification interest for '%s'...", vmField));
+        if (!debugpyClient.registerFieldModificationInterest((PyField) vmField)) {
+            controller.newLogMessage(this, Level.WARNING, String.format("Could not register field modification interestest for '%s'!", vmField));
+        }
     }
 
     @Override
@@ -123,33 +160,24 @@ public class PythonAdapter extends AbstractVMAdapter {
     }
 
     @Override
-    public void registerOperationCallInterest(VMMethod m) {
-        debugpyClient.registerOperationCallInterest((PyMethod) m);
+    public void registerClassPrepareEvent(String javaClassName) {
+    }
+
+    @Override
+    public void unregisterClassPrepareInterest(Object adapterEventInformation) {
     }
 
     @Override
     public void registerMethodExit(VMMethodCall call) {
-
     }
 
     @Override
     public void unregisterOperationeExit(Object adapterExitInformation) {
-
     }
 
     @Override
     public Value getMethodResultValue(Object adapterExitInformation) {
         return null;
-    }
-
-    @Override
-    public void registerConstructorCallInterest(VMType vmType) {
-        debugpyClient.registerConstructorCallInterest((PyType) vmType);
-    }
-
-    @Override
-    public void registerFieldModificationInterest(VMField f) {
-        debugpyClient.registerFieldModificationInterest((PyField) f);
     }
 
     @Override
