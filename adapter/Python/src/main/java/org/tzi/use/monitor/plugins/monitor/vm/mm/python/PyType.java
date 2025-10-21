@@ -13,13 +13,15 @@ public class PyType implements VMType {
 
     private final String typeName;
     private final PythonAdapter adapter;
+    private final boolean isClass;
 
     private String file;
     private MClass useClass;
 
-    public PyType(PythonAdapter adapter, String typeName) {
+    public PyType(PythonAdapter adapter, String typeName, boolean isClass) {
         this.adapter = adapter;
         this.typeName = typeName;
+        this.isClass = isClass;
     }
 
     @Override
@@ -42,6 +44,10 @@ public class PyType implements VMType {
         return true;
     }
 
+    public boolean isModule() {
+        return !isClass;
+    }
+
     @Override
     public Set<VMObject> getInstances() {
         return adapter.readInstances(this);
@@ -49,7 +55,7 @@ public class PyType implements VMType {
 
     @Override
     public List<VMMethod> getMethodsByName(String methodName) {
-        VMMethod vmMethod = adapter.getVMMethod(typeName, methodName);
+        VMMethod vmMethod = adapter.getVMMethod(typeName, methodName, !isClass);
         return (vmMethod != null)
                 ? Collections.singletonList(vmMethod)
                 : Collections.emptyList();

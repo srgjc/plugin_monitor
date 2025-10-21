@@ -112,11 +112,21 @@ public class PythonAdapter extends AbstractVMAdapter {
         return vmType;
     }
 
-    public VMMethod getVMMethod(String fqcn, String methodName) {
+    public VMMethod getVMMethod(String fqcn, String methodName, boolean isModule) {
         controller.newLogMessage(this, Level.FINE, String.format("Getting runtime method '%s' for type '%s'...", methodName, fqcn));
-        VMMethod vmMethod = debugpyClient.getVMMethod(fqcn, methodName);
+        String classOrModuleName = fqcn;
+        String mName = methodName;
+        if (isModule) {
+            if (methodName.equals("__init__")) {
+                return null;
+            }
+            int lastDot = methodName.lastIndexOf('.');
+            classOrModuleName = methodName.substring(0, lastDot);
+            mName = methodName.substring(lastDot + 1);
+        }
+        VMMethod vmMethod = debugpyClient.getVMMethod(classOrModuleName, mName, isModule);
         if (vmMethod == null) {
-            controller.newLogMessage(this, Level.WARNING, String.format("Could not find runtime method '%s' for type '%s'!", methodName, fqcn));
+            controller.newLogMessage(this, Level.WARNING, String.format("Could not find runtime method '%s' for type '%s'!", mName, classOrModuleName));
         }
         return vmMethod;
     }

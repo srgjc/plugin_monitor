@@ -137,14 +137,18 @@ public class DebugpyClient {
             controller.getVMType(fqcn);
         }
 
+        if (fqcn.equals("Global")) {
+            return new PyType(adapter, fqcn, false);
+        }
+
         if (fqcn.equals("Mock")) {
-            return new PyType(adapter, "Mock");
+            return new PyType(adapter, fqcn, true);
         }
 
         // TODO: Comment why pause here is needed
         pause();
 
-        PyType pyType = new PyType(adapter, fqcn);
+        PyType pyType = new PyType(adapter, fqcn, true);
 
         // Set File
         var evalArgs = new EvaluateRequestArguments();
@@ -164,7 +168,7 @@ public class DebugpyClient {
         return pyType;
     }
 
-    protected VMMethod getVMMethod(String fqcn, String methodName) {
+    protected VMMethod getVMMethod(String fqcn, String methodName, boolean isModule) {
         String methodId = String.format("%s:%s", fqcn, methodName);
         if (controller.existsVMMethod(methodId)) {
             return controller.getVMMethod(methodId);
@@ -173,7 +177,7 @@ public class DebugpyClient {
         var evalArgs = new EvaluateRequestArguments();
         evalArgs.setContext("watch");
         evalArgs.setFrameID((long) getCurrentFrameId(getThreadId("MainThread")));
-        evalArgs.setExpression(PyEvalExBuilder.getMethodSig(fqcn, methodName));
+        evalArgs.setExpression(PyEvalExBuilder.getMethodSig(fqcn, methodName, isModule));
         var evalReq = new EvaluateRequestClass();
         evalReq.setSeq(REQUEST_COUNTER++);
         evalReq.setArguments(evalArgs);
@@ -185,7 +189,7 @@ public class DebugpyClient {
             return null;
         }
 
-        PyMethod pyMethod = new PyMethod(adapter, methodName,fqcn);
+        PyMethod pyMethod = new PyMethod(adapter, isModule ? fqcn + "." + methodName : methodName, fqcn);
 
         String escapedResult = resultBody.getResult().substring(1, resultBody.getResult().length() - 1);
 
@@ -202,7 +206,7 @@ public class DebugpyClient {
         pyMethod.setArgumentTypes(argTypes);
 
         // Set line nos and filename
-        evalArgs.setExpression(PyEvalExBuilder.getMethodBreakpointInfo(fqcn, methodName));
+        evalArgs.setExpression(PyEvalExBuilder.getMethodBreakpointInfo(fqcn, methodName, isModule));
         evalReq.setSeq(REQUEST_COUNTER++);
         evalResp = (EvaluateResponseClass) sendRequest(evalReq);
 
@@ -235,7 +239,7 @@ public class DebugpyClient {
             return controller.getVMField(fId);
         }
         PyField pyField = null;
-        PyMethod initMethod = (PyMethod) getVMMethod(fqcn, "__init__");
+        PyMethod initMethod = (PyMethod) getVMMethod(fqcn, "__init__", false);
         if (initMethod != null && initMethod.getArgumentNames().stream().anyMatch(argName -> argName.equals(fieldName))) {
             pyField = new PyField(adapter, fieldName, fqcn);
             controller.storeVMField(pyField.getId(), pyField);
@@ -378,6 +382,11 @@ public class DebugpyClient {
 
     protected Set<VMObject> getInstances(PyType pyType) {
         controller.storeVMType(pyType.getName(), pyType);
+
+        if (pyType.isModule()) {
+            return Set.of(new PyObject(adapter, 1L, pyType));
+        }
+
         pause();
 
         long frameId = getCurrentFrameId(getThreadId("MainThread"));
@@ -695,6 +704,9 @@ public class DebugpyClient {
     }
 
     public boolean registerConstructorCallInterest(PyType pyType) {
+        if (pyType.isModule()) {
+            return true;
+        }
         PyMethod method = ((PyMethod) pyType.getMethodsByName("__init__").getFirst());
         String file = method.getFile();
         int endLineNo = method.getEndLineNo();
@@ -709,7 +721,7 @@ public class DebugpyClient {
             String file = pyMethod.getFile();
             int startLine = pyMethod.getStartLineNo();
             String className = pyMethod.getClassName();
-            List<Integer> returnLines = pyMethod.getReturnLines();
+            List<Integer> returnLines = pyMethod.getReturnLines().isEmpty() ? List.of(pyMethod.getEndLineNo()) : pyMethod.getReturnLines();
 
             updateInternalBreakpointMappings(file, className, List.of(startLine), BreakpointType.METHOD_CALL);
             updateInternalBreakpointMappings(file, className, returnLines, BreakpointType.METHOD_EXIT);
@@ -722,7 +734,7 @@ public class DebugpyClient {
         String fqcn = pyField.getClassName();
         String fName = pyField.getName();
         String setterName = String.format("set_%s", fName);
-        PyMethod pyMethod = (PyMethod) getVMMethod(fqcn, setterName);
+        PyMethod pyMethod = (PyMethod) getVMMethod(fqcn, setterName, false);
         if (pyMethod == null) {
             return false;
         }
@@ -798,10 +810,15 @@ public class DebugpyClient {
         controller.newLogMessage(this, Level.FINE, String.format("onMethodCall: %s.%s", fullyQualifiedClassName, stackFrame.getName()));
 
         PyType pyType = (PyType) controller.getVMType(fullyQualifiedClassName);
-        String methodId = (String) pyType.getMethodsByName(stackFrame.getName()).getFirst().getId();
+        String methodId;
+        if (pyType == null) {
+            methodId = String.format("%s:%s.%s", fullyQualifiedClassName, fullyQualifiedClassName, stackFrame.getName());
+        } else {
+            methodId = (String) pyType.getMethodsByName(stackFrame.getName()).getFirst().getId();
+        }
         PyMethod pyMethod = (PyMethod) controller.getVMMethod(methodId);
 
-        Long pyObjId = getSelfId(stackFrame.getID());
+        Long pyObjId = pyType == null ? 1L : getSelfId(stackFrame.getID());
         PyObject pyObject = (PyObject) controller.getVMObject(pyObjId);
 
         List<Value> argValues = new ArrayList<>();
@@ -817,8 +834,13 @@ public class DebugpyClient {
 
     private void onMethodExit(StackFrame stackFrame, String qualifiedClassName) {
         PyType pyType = (PyType) controller.getVMType(qualifiedClassName);
-        PyMethod pyMethod = (PyMethod) pyType.getMethodsByName(stackFrame.getName()).getFirst();
-        // TODO construct method call with runtime values
+        String methodId;
+        if (pyType == null) {
+            methodId = String.format("%s:%s.%s", qualifiedClassName, qualifiedClassName, stackFrame.getName());
+        } else {
+            methodId = (String) pyType.getMethodsByName(stackFrame.getName()).getFirst().getId();
+        }
+        PyMethod pyMethod = (PyMethod) controller.getVMMethod(methodId);
         controller.onMethodExit(pyMethod, pyMethod.getId());
     }
 

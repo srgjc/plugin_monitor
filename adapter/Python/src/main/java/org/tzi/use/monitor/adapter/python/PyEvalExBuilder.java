@@ -27,7 +27,14 @@ public class PyEvalExBuilder {
         );
     }
 
-    public static String getMethodSig(String fqcn, String methodName) {
+    public static String getMethodSig(String fqcn, String methodName, boolean isModule) {
+        if (isModule) {
+            return String.format(
+                    """
+                    ','.join([p.name for p in __import__('inspect').signature(getattr(__import__('sys').modules['%s'], '%s')).parameters.values()])
+                    """, fqcn, methodName
+            );
+        }
         String[] classNameParts = getClassNameParts(fqcn);
         return String.format(
                 """
@@ -36,7 +43,33 @@ public class PyEvalExBuilder {
         );
     }
 
-    public static String getMethodBreakpointInfo(String qualifiedClassName, String methodName) {
+    public static String getMethodBreakpointInfo(String qualifiedClassName, String methodName, boolean isModule) {
+        if (isModule) {
+            return String.format(
+                    """
+                            (
+                              lambda fn: {
+                                "file": __import__('inspect').getsourcefile(fn),
+                                "start": fn.__code__.co_firstlineno + 1,
+                                "end": fn.__code__.co_firstlineno + len(__import__('inspect').getsourcelines(fn)[0]) - 1,
+                                "returns": [
+                                  node.lineno + fn.__code__.co_firstlineno - 1
+                                  for node in __import__('ast').walk(
+                                    __import__('ast').parse(
+                                      __import__('textwrap').dedent(
+                                        "".join(__import__('inspect').getsourcelines(fn)[0])
+                                      )
+                                    )
+                                  )
+                                  if isinstance(node, __import__('ast').Return)
+                                ]
+                              }
+                            )(getattr(__import__('sys').modules['%s'], '%s'))
+                            """,
+                    qualifiedClassName,
+                    methodName
+            );
+        }
         String[] classNameParts = getClassNameParts(qualifiedClassName);
         return String.format(
                 """
