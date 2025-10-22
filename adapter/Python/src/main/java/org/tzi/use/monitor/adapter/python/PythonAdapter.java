@@ -28,6 +28,7 @@ public class PythonAdapter extends AbstractVMAdapter {
     private String workspace;
     private DebugpyClient debugpyClient;
 
+    // FIXME: More robust validation
     @Override
     protected void validateSettings() throws InvalidAdapterConfiguration {
         List<VMAdapterSetting> settings = getSettings();
@@ -46,6 +47,7 @@ public class PythonAdapter extends AbstractVMAdapter {
 
         String settingWorkspace = settings.get(SETTING_WORKSPACE_IDX).value;
         try {
+            // FIXME: SUM should not be assumed to be in the localhost.
             Path workspacePath = Path.of(settingWorkspace);
             boolean isValidDir = Files.isDirectory(workspacePath);
             if (isValidDir) {
