@@ -395,7 +395,7 @@ public class DebugpyClient {
         }
         PyMethod method = ((PyMethod) pyType.getMethodsByName("__init__").getFirst());
         String file = method.getFile();
-        int endLineNo = method.getEndLineNo();
+        int endLineNo = method.getStartLineNo();
         String className = method.getClassName();
 
         updateInternalBreakpointMappings(file, className, List.of(endLineNo), BreakpointType.CONSTRUCTOR_CALL);
