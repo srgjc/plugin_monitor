@@ -49,7 +49,7 @@ public class PyEvalExBuilder {
                     """
                             (
                               lambda fn: {
-                                "file": __import__('inspect').getsourcefile(fn),
+                                "file": __import__('os').path.abspath(__import__('inspect').getsourcefile(fn)),
                                 "start": fn.__code__.co_firstlineno + 1,
                                 "end": fn.__code__.co_firstlineno + len(__import__('inspect').getsourcelines(fn)[0]) - 1,
                                 "returns": [
@@ -75,7 +75,7 @@ public class PyEvalExBuilder {
                 """
                         (
                           lambda fn: {
-                            "file": __import__('inspect').getsourcefile(fn),
+                            "file": __import__('os').path.abspath(__import__('inspect').getsourcefile(fn)),
                             "start": fn.__code__.co_firstlineno + 1,
                             "end": fn.__code__.co_firstlineno + len(__import__('inspect').getsourcelines(fn)[0]) - 1,
                             "returns": [
