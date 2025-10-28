@@ -157,12 +157,8 @@ public class DebugpyClient {
         if (controller.existsVMField(fId)) {
             return controller.getVMField(fId);
         }
-        PyField pyField = null;
-        PyMethod initMethod = (PyMethod) getVMMethod(fqcn, "__init__", false);
-        if (initMethod != null && initMethod.getArgumentNames().stream().anyMatch(argName -> argName.equals(fieldName))) {
-            pyField = new PyField(adapter, fieldName, fqcn);
-            controller.storeVMField(pyField.getId(), pyField);
-        }
+        PyField pyField = new PyField(adapter, fieldName, fqcn);
+        controller.storeVMField(pyField.getId(), pyField);
         return pyField;
     }
 
