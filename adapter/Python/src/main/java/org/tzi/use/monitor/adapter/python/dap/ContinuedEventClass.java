@@ -13,11 +13,12 @@ import com.fasterxml.jackson.annotation.*;
  * It is only necessary to send a `continued` event if there was no previous request that
  * implied this.
  */
-public class ContinuedEventClass {
+@JsonInclude(JsonInclude.Include.NON_NULL)
+public class ContinuedEventClass implements DAPEvent {
     private long seq;
-    private BreakpointEventType type;
+    private String type;
     private ContinuedEventBody body;
-    private ContinuedEventEvent event;
+    private String event;
 
     /**
      * Sequence number of the message (also known as message ID). The `seq` for the first
@@ -36,9 +37,9 @@ public class ContinuedEventClass {
      * Message type.
      */
     @JsonProperty("type")
-    public BreakpointEventType getType() { return type; }
+    public String getType() { return type; }
     @JsonProperty("type")
-    public void setType(BreakpointEventType value) { this.type = value; }
+    public void setType(String value) { this.type = value; }
 
     /**
      * Event-specific information.
@@ -52,7 +53,7 @@ public class ContinuedEventClass {
      * Type of event.
      */
     @JsonProperty("event")
-    public ContinuedEventEvent getEvent() { return event; }
+    public String getEvent() { return event; }
     @JsonProperty("event")
-    public void setEvent(ContinuedEventEvent value) { this.event = value; }
+    public void setEvent(String value) { this.event = value; }
 }

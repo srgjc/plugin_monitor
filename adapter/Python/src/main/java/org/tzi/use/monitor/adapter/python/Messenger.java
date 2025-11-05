@@ -28,10 +28,11 @@ public class Messenger {
 
     private final DebugpyClient client;
 
-    private CompletableFuture<DAPResponse> futureResp;
-    private CompletableFuture<InitializedEventClass> initEventFuture;
-    private CompletableFuture<StoppedEventClass> pauseEventFuture;
-    public CompletableFuture<StoppedEventClass> breakpointEventFuture;
+    private CompletableFuture<DAPResponse> futureResp = new CompletableFuture<>();
+    private CompletableFuture<InitializedEventClass> initEventFuture = new CompletableFuture<>();
+    private CompletableFuture<StoppedEventClass> pauseEventFuture = new CompletableFuture<>();
+    private CompletableFuture<ContinuedEventClass> continuedEventFuture = new CompletableFuture<>();
+    public CompletableFuture<StoppedEventClass> breakpointEventFuture = new CompletableFuture<>();
 
     public Messenger(Socket socket, DebugpyClient client) throws IOException {
         this.socket = socket;
@@ -123,12 +124,24 @@ public class Messenger {
     }
 
     public boolean resume() {
+        continuedEventFuture = new CompletableFuture<>();
+
         var continueArgs = new ContinueRequestArguments();
         continueArgs.setThreadID(getThreadId().get());
         var continueReq = new ContinueRequestClass();
         continueReq.setSeq(REQUEST_COUNTER++);
         continueReq.setArguments(continueArgs);
-        return ((ContinueResponseClass) sendRequest(continueReq)).getSuccess();
+        if (!((ContinueResponseClass) sendRequest(continueReq)).getSuccess()) {
+            return false;
+        }
+
+        try {
+            continuedEventFuture.get();
+        } catch (InterruptedException | ExecutionException e) {
+            throw new RuntimeException(e);
+        }
+
+        return true;
     }
 
 
@@ -341,6 +354,10 @@ public class Messenger {
                     if (msg instanceof DAPEvent dapEvent) {
                         if (dapEvent instanceof InitializedEventClass initializedEvent) {
                             initEventFuture.complete(initializedEvent);
+                        }
+                        if (dapEvent instanceof ContinuedEventClass continuedEventClass) {
+                            client.running = true;
+                            continuedEventFuture.complete(continuedEventClass);
                         }
                         if (dapEvent instanceof StoppedEventClass stoppedEvent) {
                             client.running = false;

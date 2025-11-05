@@ -46,6 +46,7 @@ public class MessageMapper {
             case "initialized" -> mapper.readValue(json, InitializedEventClass.class);
             case "stopped" -> mapper.readValue(json, StoppedEventClass.class);
             case "terminated" -> mapper.readValue(json, TerminatedEventClass.class);
+            case "continued" -> mapper.readValue(json, ContinuedEventClass.class);
             default -> null;
         };
     }
