@@ -17,7 +17,6 @@ import org.tzi.use.uml.ocl.value.*;
 
 import java.io.*;
 import java.net.Socket;
-import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
 import java.util.logging.Level;
@@ -78,7 +77,7 @@ public class DebugpyClient {
 
         pause(); // Match monitor state
 
-        Optional<String> fileOpt = messenger.evaluate(PyEvalExBuilder.getFileForClass(fqcn));
+        Optional<String> fileOpt = messenger.evaluate(PyEvalExBuilder.getClass(fqcn));
         if (fileOpt.isEmpty()) {
             return null;
         }

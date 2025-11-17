@@ -5,10 +5,10 @@ public class PyEvalExBuilder {
     private static final int MODULE_NAME_IDX = 0;
     private static final int SIMPLE_CLASS_NAME_IDX = 1;
 
-    public static String getFileForClass(String qualifiedClassName) {
+    public static String getClass(String qualifiedClassName) {
         String[] classNameParts = getClassNameParts(qualifiedClassName);
         return String.format(
-                "getattr(__import__('sys').modules.get(getattr(__import__('sys').modules['%s'], '%s').__module__), '__file__', None)",
+                "getattr(__import__('sys').modules['%s'], '%s')",
                 classNameParts[MODULE_NAME_IDX],
                 classNameParts[SIMPLE_CLASS_NAME_IDX]
         );
