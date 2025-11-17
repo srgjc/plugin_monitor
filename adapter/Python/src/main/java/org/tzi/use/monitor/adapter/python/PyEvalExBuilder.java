@@ -27,28 +27,13 @@ public class PyEvalExBuilder {
         );
     }
 
-    public static String getMethodSig(String fqcn, String methodName, boolean isModule) {
-        if (isModule) {
-            return String.format(
-                    """
-                    ','.join([p.name for p in __import__('inspect').signature(getattr(__import__('sys').modules['%s'], '%s')).parameters.values()])
-                    """, fqcn, methodName
-            );
-        }
-        String[] classNameParts = getClassNameParts(fqcn);
-        return String.format(
-                """
-                ','.join([p.name for p in __import__('inspect').signature(getattr(__import__('sys').modules['%s'], '%s').%s).parameters.values()])
-                """, classNameParts[MODULE_NAME_IDX], classNameParts[SIMPLE_CLASS_NAME_IDX], methodName
-        );
-    }
-
-    public static String getMethodBreakpointInfo(String qualifiedClassName, String methodName, boolean isModule) {
+   public static String getMethodInfo(String qualifiedClassName, String methodName, boolean isModule) {
         if (isModule) {
             return String.format(
                     """
                             (
                               lambda fn: {
+                                "args": ','.join([p.name for p in __import__('inspect').signature(fn).parameters.values()]),
                                 "file": __import__('os').path.abspath(__import__('inspect').getsourcefile(fn)),
                                 "start": fn.__code__.co_firstlineno + 1,
                                 "end": fn.__code__.co_firstlineno + len(__import__('inspect').getsourcelines(fn)[0]) - 1,
@@ -75,6 +60,7 @@ public class PyEvalExBuilder {
                 """
                         (
                           lambda fn: {
+                            "args": ','.join([p.name for p in __import__('inspect').signature(fn).parameters.values()]),
                             "file": __import__('os').path.abspath(__import__('inspect').getsourcefile(fn)),
                             "start": fn.__code__.co_firstlineno + 1,
                             "end": fn.__code__.co_firstlineno + len(__import__('inspect').getsourcelines(fn)[0]) - 1,

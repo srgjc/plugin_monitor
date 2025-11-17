@@ -30,6 +30,7 @@ import java.util.regex.Pattern;
 public class DebugpyClient {
 
     private static final Pattern MEMORY_ADDR_PATTERN = Pattern.compile("0x[0-9a-fA-F]+");
+    private static final ObjectMapper mapper = new ObjectMapper();
 
     public boolean running = false;
     private final String workspace;
@@ -94,24 +95,26 @@ public class DebugpyClient {
             return controller.getVMMethod(methodId);
         }
 
-        Optional<String> methodArgumentsOpt = messenger.evaluate(PyEvalExBuilder.getMethodSig(fqcn, methodName, isModule));
-        if (methodArgumentsOpt.isEmpty()) {
+        Optional<String> methodInfoOpt = messenger.evaluate(PyEvalExBuilder.getMethodInfo(fqcn, methodName, isModule));
+        if (methodInfoOpt.isEmpty()) {
             return null;
         }
 
-        String methodArguments = methodArgumentsOpt.get();
-
-        if (methodArguments.equals("''")) {
+        String json = methodInfoOpt.get().replace("'", "\"");
+        JsonNode root;
+        try {
+            root = mapper.readTree(json);
+        } catch (JsonProcessingException e) {
             return null;
         }
 
         PyMethod pyMethod = new PyMethod(adapter, isModule ? fqcn + "." + methodName : methodName, fqcn);
 
-        String escapedResult = methodArguments.substring(1, methodArguments.length() - 1);
+        String methodArguments = root.get("args").asText();
 
         List<String> argNames = new ArrayList<>();
         List<String> argTypes = new ArrayList<>();
-        for (String argName : escapedResult.split(",")) {
+        for (String argName : methodArguments.split(",")) {
             if (argName.equals("self")) {
                 continue;
             }
@@ -122,19 +125,6 @@ public class DebugpyClient {
         pyMethod.setArgumentTypes(argTypes);
 
         // Set line nos and filename
-        Optional<String> breakpointInfoOpt = messenger.evaluate(PyEvalExBuilder.getMethodBreakpointInfo(fqcn, methodName, isModule));
-        if (breakpointInfoOpt.isEmpty()) {
-            return null;
-        }
-
-        String json = breakpointInfoOpt.get().replace("'", "\"");
-        ObjectMapper mapper = new ObjectMapper();
-        JsonNode root;
-        try {
-            root = mapper.readTree(json);
-        } catch (JsonProcessingException e) {
-            return null;
-        }
         String fileRaw = root.get("file").asText();
         String normalizedFile = Paths.get(fileRaw).normalize().toString();
         pyMethod.setFile(normalizedFile);
