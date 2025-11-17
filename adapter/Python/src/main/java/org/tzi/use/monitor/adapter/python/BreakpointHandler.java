@@ -90,7 +90,9 @@ public class BreakpointHandler implements Runnable {
         }
         PyMethod pyMethod = (PyMethod) controller.getVMMethod(methodId);
 
-        Long pyObjId = pyType == null ? 1L : messenger.getSelfId(stackFrame.getID());
+        Long pyObjId = (pyType == null)
+                ? DebugpyClient.GLOBAL_MODULE_ID
+                : messenger.getSelfId(stackFrame.getID());
         PyObject pyObject = (PyObject) controller.getVMObject(pyObjId);
 
         List<Value> argValues = new ArrayList<>();

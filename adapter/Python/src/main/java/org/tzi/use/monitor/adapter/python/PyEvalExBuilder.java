@@ -18,12 +18,13 @@ public class PyEvalExBuilder {
         return "id(self)";
     }
 
-    public static String getInstanceIds(String qualifiedClassName) {
+    public static String getInstanceIds(String qualifiedClassName, int maxInstances) {
         String[] classNameParts = getClassNameParts(qualifiedClassName);
         return String.format(
-                "[id(obj) for obj in __import__('gc').get_objects() if isinstance(obj, getattr(__import__('%s'), '%s'))]\n",
+                "repr([id(obj) for obj in __import__('gc').get_objects() if isinstance(obj, getattr(__import__('%s'), '%s'))][:%d])\n",
                 classNameParts[MODULE_NAME_IDX],
-                classNameParts[SIMPLE_CLASS_NAME_IDX]
+                classNameParts[SIMPLE_CLASS_NAME_IDX],
+                maxInstances
         );
     }
 

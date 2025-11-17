@@ -31,6 +31,7 @@ public class DebugpyClient {
 
     private static final Pattern MEMORY_ADDR_PATTERN = Pattern.compile("0x[0-9a-fA-F]+");
     private static final ObjectMapper mapper = new ObjectMapper();
+    static final long GLOBAL_MODULE_ID = 1L;
 
     public boolean running = false;
     private final String workspace;
@@ -198,31 +199,27 @@ public class DebugpyClient {
         }
     }
 
-    protected Set<VMObject> getInstances(PyType pyType) {
-        controller.storeVMType(pyType.getName(), pyType);
-
+    protected Set<VMObject> getInstances(PyType pyType, int maxInstances) {
+        controller.storeVMType(pyType.getName(), pyType); // Stores PyType with mapped MClass
         if (pyType.isModule()) {
-            return Set.of(new PyObject(adapter, 1L, pyType));
+            VMObject obj = controller.existsVMObject(GLOBAL_MODULE_ID)
+                    ? controller.getVMObject(GLOBAL_MODULE_ID)
+                    : new PyObject(adapter, GLOBAL_MODULE_ID, pyType);
+            return Set.of(obj);
         }
-
         pause();
-
-        Optional<String> instanceIdsOpt = messenger.evaluate(PyEvalExBuilder.getInstanceIds(pyType.getName()));
+        Optional<String> instanceIdsOpt = messenger.evaluate(PyEvalExBuilder.getInstanceIds(pyType.getName(), maxInstances));
         if (instanceIdsOpt.isEmpty()) {
             controller.newLogMessage(this, Level.SEVERE, String.format("Could not query instances for type '%s'", pyType.getName()));
             return Set.of();
         }
         String instanceIds = instanceIdsOpt.get();
         Set<VMObject> objs = new HashSet<>();
-        if (instanceIds.equals("[]")) {
+        if (instanceIds.equals("'[]'")) {
             return objs;
         }
-        String[] ids = instanceIds.substring(1, instanceIds.length() - 1).split(",");
+        String[] ids = instanceIds.substring(2, instanceIds.length() - 2).split(",");
         for (String id : ids) {
-            // TODO: Fix debugpy list truncation
-            if (id.trim().equals("...")) {
-                continue;
-            }
             long objId = Long.parseLong(id.trim());
             PyObject pyObject = new PyObject(adapter, objId, pyType);
             objs.add(pyObject);

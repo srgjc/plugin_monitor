@@ -22,10 +22,12 @@ public class PythonAdapter extends AbstractVMAdapter {
     private static final int SETTING_HOST_IDX = 0;
     private static final int SETTING_PORT_IDX = 1;
     private static final int SETTING_WORKSPACE_IDX = 2;
+    private static final int SETTING_MAX_INSTANCES_IDX = 3;
 
     private String host;
     private int port;
     private String workspace;
+    private int maxInstances;
     private DebugpyClient debugpyClient;
 
     // FIXME: More robust validation
@@ -58,13 +60,20 @@ public class PythonAdapter extends AbstractVMAdapter {
         } catch (Exception e) {
             throw new InvalidAdapterConfiguration("Invalid directory!");
         }
+
+        try {
+            maxInstances = Integer.parseInt(settings.get(SETTING_MAX_INSTANCES_IDX).value);
+        } catch (NumberFormatException e) {
+            throw new InvalidAdapterConfiguration("Max. Instances must be an integer!");
+        }
     }
 
     @Override
     protected void createSettings(List<VMAdapterSetting> settings) {
         settings.add(SETTING_HOST_IDX, new VMAdapterSetting("Host", "localhost"));
         settings.add(SETTING_PORT_IDX, new VMAdapterSetting("Port", "5678"));
-        settings.add(SETTING_WORKSPACE_IDX, new VMAdapterSetting("SUM root dir", "/Users/serj/git/uni/dpy-server"));
+        settings.add(SETTING_WORKSPACE_IDX, new VMAdapterSetting("SUM Directory Path", ""));
+        settings.add(SETTING_MAX_INSTANCES_IDX, new VMAdapterSetting("Max. Instances", "50"));
     }
 
     @Override
@@ -96,7 +105,7 @@ public class PythonAdapter extends AbstractVMAdapter {
     }
 
     public Set<VMObject> readInstances(PyType pyType) {
-        return debugpyClient.getInstances(pyType);
+        return debugpyClient.getInstances(pyType, maxInstances);
     }
 
     public Value getUSEValue(long objId, String fName) {
