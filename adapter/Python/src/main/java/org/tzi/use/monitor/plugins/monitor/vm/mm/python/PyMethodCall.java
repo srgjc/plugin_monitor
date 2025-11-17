@@ -14,10 +14,8 @@ public class PyMethodCall implements VMMethodCall {
     private final PyMethod pyMethod;
     private final PyObject pyObject;
     private final List<Value> argVals;
-    private final PythonAdapter adapter;
 
-    public PyMethodCall(PythonAdapter adapter, PyMethod pyMethod, PyObject pyObject, List<Value> argVals) {
-        this.adapter = adapter;
+    public PyMethodCall(PyMethod pyMethod, PyObject pyObject, List<Value> argVals) {
         this.pyMethod = pyMethod;
         this.pyObject = pyObject;
         this.argVals = argVals;
@@ -41,15 +39,6 @@ public class PyMethodCall implements VMMethodCall {
     @Override
     public int getNumArguments() throws VMAccessException {
         return pyMethod.getArgumentTypes().size();
-    }
-
-    @Override
-    public String toString() {
-        return "PyMethodCall{" +
-                "pyMethod=" + pyMethod +
-                ", pyObject=" + pyObject +
-                ", argVals=" + argVals +
-                '}';
     }
 
 }

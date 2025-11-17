@@ -99,7 +99,7 @@ public class BreakpointHandler implements Runnable {
             argValues.add(debugpyClient.getUSEValue(argDAPValue));
         }
 
-        PyMethodCall pyMethodCall = new PyMethodCall(adapter, pyMethod, pyObject, argValues);
+        PyMethodCall pyMethodCall = new PyMethodCall(pyMethod, pyObject, argValues);
 
         controller.onMethodCall(pyMethodCall);
     }

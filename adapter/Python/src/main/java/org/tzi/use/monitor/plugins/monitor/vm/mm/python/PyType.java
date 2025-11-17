@@ -15,7 +15,6 @@ public class PyType implements VMType {
     private final PythonAdapter adapter;
     private final boolean isClass;
 
-    private String file;
     private MClass useClass;
 
     public PyType(PythonAdapter adapter, String typeName, boolean isClass) {
@@ -74,14 +73,6 @@ public class PyType implements VMType {
     @Override
     public void setUSEClass(MClass cls) {
         this.useClass = cls;
-    }
-
-    public String getFile() {
-        return file;
-    }
-
-    public void setFile(String file) {
-        this.file = file;
     }
 
     @Override

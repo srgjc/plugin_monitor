@@ -84,8 +84,6 @@ public class DebugpyClient {
         }
 
         PyType pyType = new PyType(adapter, fqcn, true);
-        String normalizedPath = Path.of(fileOpt.get()).normalize().toString().replace("'", "");
-        pyType.setFile(normalizedPath);
 
         controller.storeVMType(fqcn, pyType);
         return pyType;
@@ -158,7 +156,7 @@ public class DebugpyClient {
         if (controller.existsVMField(fId)) {
             return controller.getVMField(fId);
         }
-        PyField pyField = new PyField(adapter, fieldName, fqcn);
+        PyField pyField = new PyField(fieldName, fqcn);
         controller.storeVMField(pyField.getId(), pyField);
         return pyField;
     }
