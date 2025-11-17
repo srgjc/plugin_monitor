@@ -10,6 +10,7 @@ import java.io.*;
 import java.net.Socket;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 
 /**
@@ -25,10 +26,9 @@ public class Messenger {
     private final Socket socket;
     private final BufferedReader in;
     private final BufferedWriter out;
-
     private final DebugpyClient client;
 
-    private CompletableFuture<DAPResponse> futureResp = new CompletableFuture<>();
+    private final ConcurrentHashMap<Long, CompletableFuture<DAPResponse>> pendingRequests = new ConcurrentHashMap<>();
     private CompletableFuture<InitializedEventClass> initEventFuture = new CompletableFuture<>();
     private CompletableFuture<StoppedEventClass> pauseEventFuture = new CompletableFuture<>();
     private CompletableFuture<ContinuedEventClass> continuedEventFuture = new CompletableFuture<>();
@@ -52,7 +52,7 @@ public class Messenger {
         var initReq = new InitializeRequestClass();
         initReq.setSeq(REQUEST_COUNTER++);
         initReq.setArguments(initArgs);
-        return (InitializeResponseClass) sendRequest(initReq);
+        return (InitializeResponseClass) sendRequestSync(initReq);
     }
 
     public void attach(String host, int port, String workspace) {
@@ -69,7 +69,7 @@ public class Messenger {
         var attachReq = new AttachRequestClass();
         attachReq.setArguments(attachArgs);
         attachReq.setSeq(REQUEST_COUNTER++);
-        sendAsyncRequest(attachReq);
+        sendRequestAsync(attachReq);
 
         try {
             initEventFuture.get();
@@ -83,7 +83,7 @@ public class Messenger {
         confDoneReq.setSeq(REQUEST_COUNTER++);
         // TODO Fix should not be async request
         //Response confDoneResp = (Response) sendRequest(confDoneReq);
-        sendAsyncRequest(confDoneReq);
+        sendRequestAsync(confDoneReq);
 
         // Wait for attach async response
         // TODO FIX! responseQueue instead of single slot
@@ -94,7 +94,6 @@ public class Messenger {
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }
-
     }
 
     public boolean pause() {
@@ -109,7 +108,7 @@ public class Messenger {
         var pauseReq = new PauseRequestClass();
         pauseReq.setSeq(REQUEST_COUNTER++);
         pauseReq.setArguments(pauseArgs);
-        var pauseResp = (PauseResponseClass) sendRequest(pauseReq);
+        var pauseResp = (PauseResponseClass) sendRequestSync(pauseReq);
 
         if (!pauseResp.getSuccess()) {
             return false;
@@ -131,7 +130,7 @@ public class Messenger {
         var continueReq = new ContinueRequestClass();
         continueReq.setSeq(REQUEST_COUNTER++);
         continueReq.setArguments(continueArgs);
-        if (!((ContinueResponseClass) sendRequest(continueReq)).getSuccess()) {
+        if (!((ContinueResponseClass) sendRequestSync(continueReq)).getSuccess()) {
             return false;
         }
 
@@ -153,7 +152,7 @@ public class Messenger {
         var evalReq = new EvaluateRequestClass();
         evalReq.setSeq(REQUEST_COUNTER++);
         evalReq.setArguments(evalArgs);
-        var evalResp = (EvaluateResponseClass) sendRequest(evalReq);
+        var evalResp = (EvaluateResponseClass) sendRequestSync(evalReq);
         return Long.parseLong(evalResp.getBody().getResult());
     }
 
@@ -165,7 +164,7 @@ public class Messenger {
         var varReq = new VariablesRequestClass();
         varReq.setSeq(REQUEST_COUNTER++);
         varReq.setArguments(varArgs);
-        var varResp = (VariablesResponseClass) sendRequest(varReq);
+        var varResp = (VariablesResponseClass) sendRequestSync(varReq);
         return varResp.getBody().getVariables();
     }
 
@@ -178,7 +177,7 @@ public class Messenger {
         var stopReq = new DisconnectRequestClass();
         stopReq.setSeq(REQUEST_COUNTER++);
         stopReq.setArguments(stopArgs);
-        return ((DisconnectResponseClass) sendRequest(stopReq)).getSuccess();
+        return ((DisconnectResponseClass) sendRequestSync(stopReq)).getSuccess();
     }
 
     public boolean setBreakpoints(String file, Set<Integer> lines) {
@@ -200,7 +199,7 @@ public class Messenger {
         var bpReq = new SetBreakpointsRequestClass();
         bpReq.setSeq(REQUEST_COUNTER++);
         bpReq.setArguments(bpArgs);
-        var bpResp = (SetBreakpointsResponseClass) sendRequest(bpReq);
+        var bpResp = (SetBreakpointsResponseClass) sendRequestSync(bpReq);
         return bpResp.getSuccess();
     }
 
@@ -222,7 +221,7 @@ public class Messenger {
         var evalReq = new EvaluateRequestClass();
         evalReq.setSeq(REQUEST_COUNTER++);
         evalReq.setArguments(evalArgs);
-        var evalResp = (EvaluateResponseClass) sendRequest(evalReq);
+        var evalResp = (EvaluateResponseClass) sendRequestSync(evalReq);
         return new DAPValue(evalResp.getBody().getResult(), evalResp.getBody().getType(), evalResp.getBody().getVariablesReference());
     }
 
@@ -242,13 +241,13 @@ public class Messenger {
         var evalReq = new EvaluateRequestClass();
         evalReq.setSeq(REQUEST_COUNTER++);
         evalReq.setArguments(evalArgs);
-        return (EvaluateResponseClass) sendRequest(evalReq);
+        return (EvaluateResponseClass) sendRequestSync(evalReq);
     }
 
     public Optional<Long> getThreadId() {
         var threadsReq = new ThreadsRequestClass();
         threadsReq.setSeq(REQUEST_COUNTER++);
-        var threadsResp = (ThreadsResponseClass) sendRequest(threadsReq);
+        var threadsResp = (ThreadsResponseClass) sendRequestSync(threadsReq);
         if (threadsResp.getSuccess()) {
             for (Thread thread : threadsResp.getBody().getThreads()) {
                 if (thread.getName().equals("MainThread")) {
@@ -265,19 +264,19 @@ public class Messenger {
         var stackTraceReq = new StackTraceRequestClass();
         stackTraceReq.setSeq(REQUEST_COUNTER++);
         stackTraceReq.setArguments(stackTraceArgs);
-        var stackTraceResp = (StackTraceResponseClass) sendRequest(stackTraceReq);
+        var stackTraceResp = (StackTraceResponseClass) sendRequestSync(stackTraceReq);
 
         return stackTraceResp.getSuccess()
                 ? Optional.of(stackTraceResp.getBody().getStackFrames()[0])
                 : Optional.empty();
     }
 
-    private DAPResponse sendRequest(DAPRequest dapRequest) {
-        sendAsyncRequest(dapRequest);
-        return waitForAsyncResponse();
+    private DAPResponse sendRequestSync(DAPRequest dapRequest) {
+        CompletableFuture<DAPResponse> futureResp = sendRequestAsync(dapRequest);
+        return waitForAsyncResponse(futureResp);
     }
 
-    private DAPResponse waitForAsyncResponse() {
+    private DAPResponse waitForAsyncResponse(CompletableFuture<DAPResponse> futureResp) {
         DAPResponse res;
         try {
             System.out.println("Waiting for response...");
@@ -289,18 +288,19 @@ public class Messenger {
         return res;
     }
 
-    private void  sendAsyncRequest(DAPRequest DAPRequest) {
-        futureResp = new CompletableFuture<>();
+    private CompletableFuture<DAPResponse> sendRequestAsync(DAPRequest request) {
+        long reqSeq = request.getSeq();
+        CompletableFuture<DAPResponse> future =
+                pendingRequests.computeIfAbsent(reqSeq, ignored -> new CompletableFuture<>());
 
         String json;
         try {
-            json = mapper.writeValueAsString(DAPRequest);
+            json = mapper.writeValueAsString(request);
         } catch (JsonProcessingException e) {
             throw new RuntimeException(e);
         }
 
         String header = "Content-Length: " + json.length() + "\r\n\r\n";
-
         try {
             System.out.println("Sending request: " + header + json);
             out.write(header + json);
@@ -308,6 +308,7 @@ public class Messenger {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+        return future;
     }
 
     private void startReaderThread() {
@@ -338,18 +339,12 @@ public class Messenger {
                         System.out.println("Skipping unknown message type...");
                         continue;
                     }
-                    if (msg instanceof DAPResponse) {
-                        System.out.println("Response instance: " + msg);
-                        // TODO FIX workaround
-                        //  int reqSeq = ((DAPResponse) msg).getRequestSequence();
-                        //if (reqSeq == currReqSeq - 1) {
-                        System.out.println("Matched response: " + json);
-                        if (futureResp.complete((DAPResponse) msg)) {
-                            System.out.println("Response completed!");
+                    if (msg instanceof DAPResponse dapResp) {
+                        long reqSeq = dapResp.getRequestSeq();
+                        CompletableFuture<DAPResponse> future = pendingRequests.remove(reqSeq);
+                        if (future != null) {
+                            future.complete(dapResp);
                         }
-                        //} else {
-                        //  System.out.println("Ignored async message: " + json);
-                        //}
                     }
                     if (msg instanceof DAPEvent dapEvent) {
                         if (dapEvent instanceof InitializedEventClass initializedEvent) {
