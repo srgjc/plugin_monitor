@@ -53,11 +53,7 @@ public class PyObject implements VMObject {
 
     @Override
     public String toString() {
-        return "PyObject{" +
-                "id=" + id +
-                ", type=" + type +
-                ", useObject=" + useObject +
-                '}';
+        return String.format("%s:%d", type, type.toString(), id);
     }
 
 }

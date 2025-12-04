@@ -2,12 +2,13 @@ package org.tzi.use.monitor.adapter.python;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.tzi.use.monitor.adapter.python.custom.DAPValue;
 import org.tzi.use.monitor.adapter.python.dap.*;
 import org.tzi.use.monitor.adapter.python.dap.Thread;
+import org.tzi.use.monitor.adapter.python.dap.custom.*;
 
 import java.io.*;
 import java.net.Socket;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -19,7 +20,7 @@ import java.util.concurrent.ExecutionException;
  */
 public class Messenger {
 
-    public static int REQUEST_COUNTER = 1;
+    private static int REQUEST_COUNTER = 1;
 
     private final ObjectMapper mapper = new ObjectMapper();
 
@@ -59,8 +60,7 @@ public class Messenger {
         var attachArgs = new AttachRequestArgumentsClass();
         attachArgs.setConnect(Map.of("host", host, "port", port));
         attachArgs.setPathMappings(List.of(Map.of("localRoot", workspace, "remoteRoot", ".")));
-        // FIXME: Dynamic OS resolution with debugpy expected values
-        attachArgs.setClientOs("unix");
+        attachArgs.setClientOs(resolveClientOS());
         attachArgs.setDebugOptions(List.of("RedirectOutput", "ShowReturnValue"));
         attachArgs.setShowReturnValue(true);
         attachArgs.setJustMyCode(true);
@@ -74,8 +74,15 @@ public class Messenger {
         try {
             initEventFuture.get();
         } catch (InterruptedException | ExecutionException e) {
+            if (e instanceof InterruptedException) java.lang.Thread.currentThread().interrupt();
             throw new RuntimeException(e);
         }
+    }
+
+    private String resolveClientOS() {
+        return System.getProperty("os.name").toLowerCase().contains("win")
+                ? "WINDOWS"
+                : "UNIX";
     }
 
     public void configurationDone() {
@@ -92,7 +99,7 @@ public class Messenger {
         try {
             java.lang.Thread.sleep(1000);
         } catch (InterruptedException e) {
-            throw new RuntimeException(e);
+            java.lang.Thread.currentThread().interrupt();
         }
     }
 
@@ -100,11 +107,8 @@ public class Messenger {
         pauseEventFuture = new CompletableFuture<>();
 
         var pauseArgs = new PauseRequestArguments();
-        var threadIdOpt = getThreadId();
-        if (threadIdOpt.isEmpty()) {
-            return false;
-        }
-        pauseArgs.setThreadID(threadIdOpt.get());
+        var threadId = getThreadId();
+        pauseArgs.setThreadID(threadId);
         var pauseReq = new PauseRequestClass();
         pauseReq.setSeq(REQUEST_COUNTER++);
         pauseReq.setArguments(pauseArgs);
@@ -117,6 +121,7 @@ public class Messenger {
         try {
             pauseEventFuture.get();
         } catch (InterruptedException | ExecutionException e) {
+            if (e instanceof InterruptedException) java.lang.Thread.currentThread().interrupt();
             throw new RuntimeException(e);
         }
         return true;
@@ -126,7 +131,7 @@ public class Messenger {
         continuedEventFuture = new CompletableFuture<>();
 
         var continueArgs = new ContinueRequestArguments();
-        continueArgs.setThreadID(getThreadId().get());
+        continueArgs.setThreadID(getThreadId());
         var continueReq = new ContinueRequestClass();
         continueReq.setSeq(REQUEST_COUNTER++);
         continueReq.setArguments(continueArgs);
@@ -137,9 +142,9 @@ public class Messenger {
         try {
             continuedEventFuture.get();
         } catch (InterruptedException | ExecutionException e) {
+            if (e instanceof InterruptedException) java.lang.Thread.currentThread().interrupt();
             throw new RuntimeException(e);
         }
-
         return true;
     }
 
@@ -155,7 +160,6 @@ public class Messenger {
         var evalResp = (EvaluateResponseClass) sendRequestSync(evalReq);
         return Long.parseLong(evalResp.getBody().getResult());
     }
-
 
 
     public Variable[] getDAPChildren(long variablesReference) {
@@ -203,17 +207,15 @@ public class Messenger {
         return bpResp.getSuccess();
     }
 
-    public Optional<String> evaluate(String expression) {
+    public String evaluate(String expression) throws Exception {
         EvaluateResponseClass raw = evaluateRaw(expression);
-        if (raw == null) {
-            return Optional.empty();
+        if (raw.getSuccess()) {
+            return raw.getBody().getResult();
         }
-        return raw.getSuccess()
-                ? Optional.of(raw.getBody().getResult())
-                : Optional.empty();
+        throw new Exception("Failed to evaluate expression: " + expression);
     }
 
-    protected DAPValue getMethodArgDAPValue(long frameId, String argName){
+    protected DAPValue getMethodArgDAPValue(long frameId, String argName) {
         var evalArgs = new EvaluateRequestArguments();
         evalArgs.setFrameID(frameId);
         evalArgs.setContext("watch");
@@ -226,17 +228,10 @@ public class Messenger {
     }
 
     public EvaluateResponseClass evaluateRaw(String expression) {
-        Optional<Long> threadIdOpt = getThreadId();
-        if (threadIdOpt.isEmpty()) {
-            return null;
-        }
-        Optional<StackFrame> currStackFrameOpt = getCurrentFrame(threadIdOpt.get());
-        if (currStackFrameOpt.isEmpty()) {
-            return null;
-        }
+        StackFrame currStackFrame = getCurrentFrame(getThreadId());
         var evalArgs = new EvaluateRequestArguments();
         evalArgs.setContext("watch");
-        evalArgs.setFrameID(currStackFrameOpt.get().getID());
+        evalArgs.setFrameID(currStackFrame.getID());
         evalArgs.setExpression(expression);
         var evalReq = new EvaluateRequestClass();
         evalReq.setSeq(REQUEST_COUNTER++);
@@ -244,21 +239,21 @@ public class Messenger {
         return (EvaluateResponseClass) sendRequestSync(evalReq);
     }
 
-    public Optional<Long> getThreadId() {
+    public Long getThreadId() {
         var threadsReq = new ThreadsRequestClass();
         threadsReq.setSeq(REQUEST_COUNTER++);
         var threadsResp = (ThreadsResponseClass) sendRequestSync(threadsReq);
         if (threadsResp.getSuccess()) {
             for (Thread thread : threadsResp.getBody().getThreads()) {
                 if (thread.getName().equals("MainThread")) {
-                    return Optional.of(thread.getID());
+                    return thread.getID();
                 }
             }
         }
-        return Optional.empty();
+        throw new IllegalMonitorStateException("Could not get thread id from threads request!");
     }
 
-    public Optional<StackFrame> getCurrentFrame(long threadId) {
+    public StackFrame getCurrentFrame(long threadId) {
         var stackTraceArgs = new StackTraceRequestArguments();
         stackTraceArgs.setThreadID(threadId);
         var stackTraceReq = new StackTraceRequestClass();
@@ -266,9 +261,10 @@ public class Messenger {
         stackTraceReq.setArguments(stackTraceArgs);
         var stackTraceResp = (StackTraceResponseClass) sendRequestSync(stackTraceReq);
 
-        return stackTraceResp.getSuccess()
-                ? Optional.of(stackTraceResp.getBody().getStackFrames()[0])
-                : Optional.empty();
+        if (stackTraceResp.getSuccess()) {
+            return stackTraceResp.getBody().getStackFrames()[0];
+        }
+        throw new IllegalMonitorStateException(String.format("Could not get current stack frame for threadId: %d!", threadId));
     }
 
     private DAPResponse sendRequestSync(DAPRequest dapRequest) {
@@ -279,10 +275,9 @@ public class Messenger {
     private DAPResponse waitForAsyncResponse(CompletableFuture<DAPResponse> futureResp) {
         DAPResponse res;
         try {
-            System.out.println("Waiting for response...");
             res = futureResp.get();
-            System.out.println("Finished waiting for response...");
         } catch (InterruptedException | ExecutionException e) {
+            if (e instanceof InterruptedException) java.lang.Thread.currentThread().interrupt();
             throw new RuntimeException(e);
         }
         return res;
@@ -300,10 +295,12 @@ public class Messenger {
             throw new RuntimeException(e);
         }
 
-        String header = "Content-Length: " + json.length() + "\r\n\r\n";
+        byte[] bytes = json.getBytes(StandardCharsets.UTF_8);
+        String header = "Content-Length: " + bytes.length + "\r\n\r\n";
         try {
-            System.out.println("Sending request: " + header + json);
-            out.write(header + json);
+            out.write(header);
+            out.flush();
+            out.write(json);
             out.flush();
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -313,30 +310,37 @@ public class Messenger {
 
     private void startReaderThread() {
         var readerThread = new java.lang.Thread(() -> {
-            System.out.println("Reader thread started...");
             try {
                 while (true) {
                     String line;
                     int contentLength = 0;
                     while ((line = in.readLine()) != null && !line.isEmpty()) {
-                        contentLength = Integer.parseInt(line.substring("Content-Length:".length()).trim());
+                        if (line.startsWith("Content-Length:")) {
+                            String val = line.substring("Content-Length:".length()).trim();
+                            try {
+                                contentLength = Integer.parseInt(val);
+                            } catch (NumberFormatException ignored) {
+                            }
+                        }
                     }
+
+                    if (contentLength <= 0) {
+                        continue;
+                    }
+
                     char[] body = new char[contentLength];
                     int read = 0;
                     while (read < contentLength) {
                         int r = in.read(body, read, contentLength - read);
-                        if (r == -1) throw new IOException("Unexpected end of stream");
+                        if (r == -1) return;
                         read += r;
                     }
                     String json = new String(body);
-                    if (json.isEmpty()) {
+                    if (json.isBlank()) {
                         continue;
                     }
-                    System.out.println("Received json response: " + json);
                     DAPMessage msg = MessageMapper.parseMessage(json);
-                    System.out.println("Parsed json response to object...");
                     if (msg == null) {
-                        System.out.println("Skipping unknown message type...");
                         continue;
                     }
                     if (msg instanceof DAPResponse dapResp) {
@@ -365,9 +369,16 @@ public class Messenger {
                             }
                         }
                     }
+                    if (msg instanceof DAPUnknown dapUnknown) {
+                        System.err.println(dapUnknown);
+                    }
                 }
+            } catch (InterruptedIOException e) {
+                java.lang.Thread.currentThread().interrupt();
+            } catch (IOException e) {
+                return;
             } catch (Exception e) {
-                throw new RuntimeException(e);
+                e.printStackTrace();
             }
         });
         readerThread.setDaemon(true);

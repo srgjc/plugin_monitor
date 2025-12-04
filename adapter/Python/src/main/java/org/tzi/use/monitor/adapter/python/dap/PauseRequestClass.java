@@ -1,6 +1,7 @@
 package org.tzi.use.monitor.adapter.python.dap;
 
 import com.fasterxml.jackson.annotation.*;
+import org.tzi.use.monitor.adapter.python.dap.custom.DAPRequest;
 
 /**
  * Base class of requests, responses, and events.

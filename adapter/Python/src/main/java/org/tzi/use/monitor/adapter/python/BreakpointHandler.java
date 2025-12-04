@@ -1,6 +1,6 @@
 package org.tzi.use.monitor.adapter.python;
 
-import org.tzi.use.monitor.adapter.python.custom.DAPValue;
+import org.tzi.use.monitor.adapter.python.dap.custom.DAPValue;
 import org.tzi.use.monitor.adapter.python.dap.StackFrame;
 import org.tzi.use.monitor.adapter.python.dap.StoppedEventClass;
 import org.tzi.use.monitor.plugins.monitor.vm.mm.python.*;
@@ -9,7 +9,7 @@ import org.tzi.use.uml.ocl.value.Value;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.logging.Level;
@@ -43,16 +43,27 @@ public class BreakpointHandler implements Runnable {
                 if (!debugpyClient.isConnected) {
                     return;
                 }
-                Optional<StackFrame> currFrameOpt = messenger.getCurrentFrame(Math.toIntExact(breakpointEvent.getBody().getThreadID()));
-                if (currFrameOpt.isEmpty()) {
-                    throw new IllegalStateException();
-                }
-                StackFrame currFrame = currFrameOpt.get();
+                StackFrame currFrame = messenger.getCurrentFrame(Math.toIntExact(breakpointEvent.getBody().getThreadID()));
                 int currLineNo = (int) currFrame.getLine();
                 String file = currFrame.getSource().getPath();
-                String qualifiedClassName = debugpyClient.fileToClassNameMap.get(file).get(currLineNo);
 
-                BreakpointType breakpointType = debugpyClient.fileToBreakpointTypeMap.get(file).get(currLineNo);
+                Map<Integer, String> lineToClass = debugpyClient.fileToClassNameMap.get(file);
+                if (lineToClass == null || !lineToClass.containsKey(currLineNo)) {
+                    controller.newLogMessage(this, Level.WARNING, "No mapped class for " + file + ":" + currLineNo);
+                    debugpyClient.resume();
+                    continue;
+                }
+
+                Map<Integer, BreakpointType> lineToBP = debugpyClient.fileToBreakpointTypeMap.get(file);
+                if (lineToBP == null || !lineToBP.containsKey(currLineNo)) {
+                    controller.newLogMessage(this, Level.WARNING, "No breakpoint type for " + file + ":" + currLineNo);
+                    debugpyClient.resume();
+                    continue;
+                }
+
+                String qualifiedClassName = lineToClass.get(currLineNo);
+                BreakpointType breakpointType = lineToBP.get(currLineNo);
+
                 switch (breakpointType) {
                     case CONSTRUCTOR_CALL -> onConstructorCall(currFrame, qualifiedClassName);
                     case METHOD_CALL -> onMethodCall(currFrame, qualifiedClassName);
@@ -61,13 +72,14 @@ public class BreakpointHandler implements Runnable {
                 }
 
                 debugpyClient.resume(); // Match monitor running state
-            } catch (InterruptedException | ExecutionException e) {
-                throw new RuntimeException(e);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
+            } catch (ExecutionException e) {
+                controller.newLogMessage(this, Level.SEVERE, "Failed to process breakpoint event: " + e.getMessage());
             }
         }
     }
-
-
 
     private void onConstructorCall(StackFrame currentFrame, String fullyQualifiedClassName) {
         controller.newLogMessage(this, Level.FINE, "onConstructorCall: " + fullyQualifiedClassName + "." + currentFrame.getName());
@@ -82,15 +94,28 @@ public class BreakpointHandler implements Runnable {
         controller.newLogMessage(this, Level.FINE, String.format("onMethodCall: %s.%s", fullyQualifiedClassName, stackFrame.getName()));
 
         PyType pyType = (PyType) controller.getVMType(fullyQualifiedClassName);
+
         String methodId;
-        if (pyType == null) {
+        boolean isModuleMethod = pyType == null;
+        if (isModuleMethod) {
             methodId = String.format("%s:%s.%s", fullyQualifiedClassName, fullyQualifiedClassName, stackFrame.getName());
         } else {
-            methodId = (String) pyType.getMethodsByName(stackFrame.getName()).getFirst().getId();
+            var methods = pyType.getMethodsByName(stackFrame.getName());
+            if (methods.isEmpty()) {
+                controller.newLogMessage(this, Level.WARNING,
+                        "No VM method found for " + fullyQualifiedClassName + "." + stackFrame.getName());
+                return;
+            }
+            methodId = (String) methods.getFirst().getId();
         }
-        PyMethod pyMethod = (PyMethod) controller.getVMMethod(methodId);
 
-        Long pyObjId = (pyType == null)
+        PyMethod pyMethod = (PyMethod) controller.getVMMethod(methodId);
+        if (pyMethod == null) {
+            controller.newLogMessage(this, Level.WARNING, "VM method lookup returned null for id: " + methodId);
+            return;
+        }
+
+        Long pyObjId = isModuleMethod
                 ? DebugpyClient.GLOBAL_MODULE_ID
                 : messenger.getSelfId(stackFrame.getID());
         PyObject pyObject = (PyObject) controller.getVMObject(pyObjId);
@@ -108,12 +133,22 @@ public class BreakpointHandler implements Runnable {
 
     private void onMethodExit(StackFrame stackFrame, String qualifiedClassName) {
         PyType pyType = (PyType) controller.getVMType(qualifiedClassName);
+
+        boolean isModuleMethod = pyType == null;
+
         String methodId;
-        if (pyType == null) {
+        if (isModuleMethod) {
             methodId = String.format("%s:%s.%s", qualifiedClassName, qualifiedClassName, stackFrame.getName());
         } else {
-            methodId = (String) pyType.getMethodsByName(stackFrame.getName()).getFirst().getId();
+            var methods = pyType.getMethodsByName(stackFrame.getName());
+            if (methods.isEmpty()) {
+                controller.newLogMessage(this, Level.WARNING, "No VM method found for exit of " +
+                        qualifiedClassName + "." + stackFrame.getName());
+                return;
+            }
+            methodId = (String) methods.getFirst().getId();
         }
+
         PyMethod pyMethod = (PyMethod) controller.getVMMethod(methodId);
         controller.onMethodExit(pyMethod, pyMethod.getId());
     }
@@ -121,22 +156,44 @@ public class BreakpointHandler implements Runnable {
     private void onAttrMod(StackFrame stackFrame, String qualifiedClassName) {
         controller.newLogMessage(this, Level.FINE, "onAttributeModification: " + qualifiedClassName + "." + stackFrame.getName());
 
+        boolean isSetter = stackFrame.getName().startsWith("set");
+        if (!isSetter) {
+            controller.newLogMessage(this, Level.WARNING, "Wrongly stopped at non-setter method for attribute modification!");
+            return;
+        }
+
+        String attrName = stackFrame.getName().substring(4);
+
         Long pyObjId = messenger.getSelfId(stackFrame.getID());
         PyObject pyObject = (PyObject) controller.getVMObject(pyObjId);
 
-        PyField pyField = (PyField) pyObject.getType().getFieldByName(stackFrame.getName().replace("set_", ""));
-
-        String methodId = (String) pyObject.getType().getMethodsByName(stackFrame.getName()).getFirst().getId();
-        PyMethod m = (PyMethod) controller.getVMMethod(methodId);
-
-        // TODO FIX assert only one arg
-        List<Value> argValues = new ArrayList<>();
-        for (String argName : m.getArgumentNames()) {
-            DAPValue argDAPValue = messenger.getMethodArgDAPValue(stackFrame.getID(), argName);
-            argValues.add(debugpyClient.getUSEValue(argDAPValue));
+        PyField pyField = (PyField) pyObject.getType().getFieldByName(attrName);
+        if (pyField == null) {
+            controller.newLogMessage(this, Level.WARNING,
+                    "Cannot determine target attribute for setter: " + stackFrame.getName());
+            return;
         }
 
-        controller.onUpdateAttribute(pyObjId, pyField.getId(), argValues.get(0));
-    }
+        var methods = pyObject.getType().getMethodsByName(stackFrame.getName());
+        if (methods.isEmpty()) {
+            controller.newLogMessage(this, Level.WARNING, "No VM method found for attribute modification on " +
+                    qualifiedClassName + "." + stackFrame.getName());
+            return;
+        }
+        String methodId = (String) methods.getFirst().getId();
 
+        PyMethod m = (PyMethod) controller.getVMMethod(methodId);
+
+        if (m != null) {
+            if (m.getArgumentNames().size() == 1) {
+                DAPValue argDAPValue = messenger.getMethodArgDAPValue(stackFrame.getID(), m.getArgumentNames().getFirst());
+                Value useValue = debugpyClient.getUSEValue(argDAPValue);
+                controller.onUpdateAttribute(pyObjId, pyField.getId(), useValue);
+            } else {
+                controller.newLogMessage(this, Level.WARNING,
+                        String.format("Could not resolve new value for attribute %s! Expected 1 setter method argument. Found: %d",
+                                pyField.getName(), m.getArgumentNames().size()));
+            }
+        }
+    }
 }

@@ -21,7 +21,7 @@ public class PyEvalExBuilder {
     public static String getInstanceIds(String qualifiedClassName, int maxInstances) {
         String[] classNameParts = getClassNameParts(qualifiedClassName);
         return String.format(
-                "repr([id(obj) for obj in __import__('gc').get_objects() if isinstance(obj, getattr(__import__('%s'), '%s'))][:%d])\n",
+                "repr([id(obj) for obj in __import__('gc').get_objects() if isinstance(obj, getattr(__import__('%s'), '%s'))][:%d])",
                 classNameParts[MODULE_NAME_IDX],
                 classNameParts[SIMPLE_CLASS_NAME_IDX],
                 maxInstances

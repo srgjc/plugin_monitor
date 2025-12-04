@@ -1,4 +1,4 @@
-package org.tzi.use.monitor.adapter.python.custom;
+package org.tzi.use.monitor.adapter.python.dap.custom;
 
 public final class DAPValue {
     private final String result;

@@ -1,6 +1,6 @@
 package org.tzi.use.monitor.adapter.python;
 
-import org.tzi.use.monitor.adapter.python.custom.DAPValue;
+import org.tzi.use.monitor.adapter.python.dap.custom.DAPValue;
 import org.tzi.use.monitor.plugins.monitor.vm.mm.python.*;
 import org.tzi.use.plugins.monitor.MonitorException;
 import org.tzi.use.plugins.monitor.vm.adapter.AbstractVMAdapter;
@@ -9,12 +9,13 @@ import org.tzi.use.plugins.monitor.vm.adapter.VMAdapterSetting;
 import org.tzi.use.plugins.monitor.vm.mm.*;
 import org.tzi.use.uml.ocl.value.*;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.*;
 import java.util.logging.Level;
 
 /**
+ * The PythonAdapter is an implementation of the VMAdapter abstraction
+ * to support the monitoring of Python programs.
+ *
  * @author Sergio Jimenez
  */
 public class PythonAdapter extends AbstractVMAdapter {
@@ -34,6 +35,9 @@ public class PythonAdapter extends AbstractVMAdapter {
     @Override
     protected void validateSettings() throws InvalidAdapterConfiguration {
         List<VMAdapterSetting> settings = getSettings();
+        if (settings.size() < 4) {
+            throw new InvalidAdapterConfiguration("Adapter settings incomplete!");
+        }
 
         String settingHostVal = settings.get(SETTING_HOST_IDX).value;
         if (settingHostVal == null || settingHostVal.isBlank()) {
@@ -48,18 +52,10 @@ public class PythonAdapter extends AbstractVMAdapter {
         }
 
         String settingWorkspace = settings.get(SETTING_WORKSPACE_IDX).value;
-        try {
-            // FIXME: SUM should not be assumed to be in the localhost.
-            Path workspacePath = Path.of(settingWorkspace);
-            boolean isValidDir = Files.isDirectory(workspacePath);
-            if (isValidDir) {
-                workspace = workspacePath.toString();
-            } else {
-                throw new IllegalArgumentException();
-            }
-        } catch (Exception e) {
-            throw new InvalidAdapterConfiguration("Invalid directory!");
+        if (settingWorkspace == null || settingWorkspace.isBlank()) {
+            throw new InvalidAdapterConfiguration("Workspace directory is missing!");
         }
+        workspace = settingWorkspace;
 
         try {
             maxInstances = Integer.parseInt(settings.get(SETTING_MAX_INSTANCES_IDX).value);
@@ -83,6 +79,7 @@ public class PythonAdapter extends AbstractVMAdapter {
             debugpyClient = new DebugpyClient(host, port, workspace, this, controller);
             if (!debugpyClient.attach()) {
                 controller.newLogMessage(this, Level.SEVERE, errMsg);
+                throw new MonitorException(errMsg);
             }
         } catch (Exception e) {
             throw new MonitorException(errMsg, e);
@@ -155,7 +152,7 @@ public class PythonAdapter extends AbstractVMAdapter {
     public void registerConstructorCallInterest(VMType vmType) {
         controller.newLogMessage(this, Level.FINE, String.format("Registering constructor call interest for type '%s'...", vmType));
         if (!debugpyClient.registerConstructorCallInterest((PyType) vmType)) {
-            controller.newLogMessage(this, Level.WARNING, String.format("Could not register constructor call interestest for type '%s'!", vmType));
+            controller.newLogMessage(this, Level.WARNING, String.format("Could not register constructor call interest for type '%s'!", vmType));
         }
     }
 
@@ -163,7 +160,7 @@ public class PythonAdapter extends AbstractVMAdapter {
     public void registerOperationCallInterest(VMMethod vmMethod) {
         controller.newLogMessage(this, Level.FINE, String.format("Registering operation call interest for '%s'...", vmMethod));
         if (!debugpyClient.registerOperationCallInterest((PyMethod) vmMethod)) {
-            controller.newLogMessage(this, Level.WARNING, String.format("Could not register operation call interestest for '%s'!", vmMethod));
+            controller.newLogMessage(this, Level.WARNING, String.format("Could not register operation call interest for '%s'!", vmMethod));
         }
     }
 
@@ -171,13 +168,13 @@ public class PythonAdapter extends AbstractVMAdapter {
     public void registerFieldModificationInterest(VMField vmField) {
         controller.newLogMessage(this, Level.FINE, String.format("Registering field modification interest for '%s'...", vmField));
         if (!debugpyClient.registerFieldModificationInterest((PyField) vmField)) {
-            controller.newLogMessage(this, Level.WARNING, String.format("Could not register field modification interestest for '%s'!", vmField));
+            controller.newLogMessage(this, Level.WARNING, String.format("Could not register field modification interest for '%s'!", vmField));
         }
     }
 
     @Override
     public boolean isVMTypeLoaded(String javaClassName) {
-        return getVMType(javaClassName) != null;
+        return controller.existsVMType(javaClassName);
     }
 
     @Override

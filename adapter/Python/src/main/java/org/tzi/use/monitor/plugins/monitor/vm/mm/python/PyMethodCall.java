@@ -1,6 +1,5 @@
 package org.tzi.use.monitor.plugins.monitor.vm.mm.python;
 
-import org.tzi.use.monitor.adapter.python.PythonAdapter;
 import org.tzi.use.plugins.monitor.vm.adapter.VMAccessException;
 import org.tzi.use.plugins.monitor.vm.mm.VMMethod;
 import org.tzi.use.plugins.monitor.vm.mm.VMMethodCall;

@@ -3,13 +3,14 @@ package org.tzi.use.monitor.adapter.python;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.tzi.use.monitor.adapter.python.custom.DAPValue;
+import org.tzi.use.monitor.adapter.python.dap.custom.DAPValue;
 import org.tzi.use.monitor.adapter.python.dap.*;
 import org.tzi.use.monitor.plugins.monitor.vm.mm.python.*;
 import org.tzi.use.plugins.monitor.Monitor;
 import org.tzi.use.plugins.monitor.vm.mm.VMField;
 import org.tzi.use.plugins.monitor.vm.mm.VMMethod;
 import org.tzi.use.plugins.monitor.vm.mm.VMObject;
+import org.tzi.use.plugins.monitor.vm.mm.VMType;
 import org.tzi.use.uml.ocl.type.TupleType;
 import org.tzi.use.uml.ocl.type.Type;
 import org.tzi.use.uml.ocl.type.TypeFactory;
@@ -24,6 +25,9 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
+ * The DebugpyClient encapsulates the core logic on which the PythonAdapter relies
+ * to provide the monitor with runtime information, bridging the gap between
+ * runtime and static representation of VM models.
  *
  * @author Sergio Jimenez
  */
@@ -66,9 +70,9 @@ public class DebugpyClient {
         return initResp.getSuccess();
     }
 
-    PyType getVMType(String fqcn) {
+    VMType getVMType(String fqcn) {
         if (controller.existsVMType(fqcn)) {
-            controller.getVMType(fqcn);
+            return controller.getVMType(fqcn);
         }
         if (fqcn.equals("Global")) {
             return new PyType(adapter, fqcn, false);
@@ -79,8 +83,10 @@ public class DebugpyClient {
 
         pause(); // Match monitor state
 
-        Optional<String> fileOpt = messenger.evaluate(PyEvalExBuilder.getClass(fqcn));
-        if (fileOpt.isEmpty()) {
+        try {
+            String ignore = messenger.evaluate(PyEvalExBuilder.getClass(fqcn));
+        } catch (Exception e) {
+            System.err.printf("Error evaluating VM type '%s'. Cause: %s%n", fqcn, e.getMessage());
             return null;
         }
 
@@ -96,12 +102,15 @@ public class DebugpyClient {
             return controller.getVMMethod(methodId);
         }
 
-        Optional<String> methodInfoOpt = messenger.evaluate(PyEvalExBuilder.getMethodInfo(fqcn, methodName, isModule));
-        if (methodInfoOpt.isEmpty()) {
+        String methodInfo;
+        try {
+            methodInfo = messenger.evaluate(PyEvalExBuilder.getMethodInfo(fqcn, methodName, isModule));
+        } catch (Exception e) {
+            System.err.printf("Error evaluating VM method '%s'. Cause: %s%n", methodName, e.getMessage());
             return null;
         }
 
-        String json = methodInfoOpt.get().replace("'", "\"");
+        String json = methodInfo.replace("'", "\"");
         JsonNode root;
         try {
             root = mapper.readTree(json);
@@ -207,15 +216,19 @@ public class DebugpyClient {
                     : new PyObject(adapter, GLOBAL_MODULE_ID, pyType);
             return Set.of(obj);
         }
+
         pause();
-        Optional<String> instanceIdsOpt = messenger.evaluate(PyEvalExBuilder.getInstanceIds(pyType.getName(), maxInstances));
-        if (instanceIdsOpt.isEmpty()) {
-            controller.newLogMessage(this, Level.SEVERE, String.format("Could not query instances for type '%s'", pyType.getName()));
+
+        String instanceIds;
+        try {
+            instanceIds = messenger.evaluate(PyEvalExBuilder.getInstanceIds(pyType.getName(), maxInstances));
+        } catch (Exception e) {
+            System.err.printf("Could not query instances for type '%s'. Cause: %s%n", pyType.getName(), e.getMessage());
             return Set.of();
         }
-        String instanceIds = instanceIdsOpt.get();
+
         Set<VMObject> objs = new HashSet<>();
-        if (instanceIds.equals("'[]'")) {
+        if (instanceIds == null || instanceIds.length() < 4 || !instanceIds.startsWith("'[") || !instanceIds.endsWith("]'")) {
             return objs;
         }
         String[] ids = instanceIds.substring(2, instanceIds.length() - 2).split(",");
@@ -231,8 +244,6 @@ public class DebugpyClient {
         if (dapValue == null) {
             return UndefinedValue.instance;
         }
-
-        System.out.println("Getting DAPValue for type: " + dapValue.getType());
 
         return switch (dapValue.getType()) {
             case "int" -> IntegerValue.valueOf(Integer.parseInt(dapValue.getResult()));
@@ -342,13 +353,11 @@ public class DebugpyClient {
                 if (dapValue.getResult().contains("object")) {
                     long objId = extractHexAndConvertToDecimal(dapValue.getResult());
                     if (controller.existsVMObject(objId)) {
-                        System.out.println("Found obj for USE value with id: " + objId);
                         VMObject obj = controller.getVMObject(objId);
                         yield new ObjectValue(obj.getUSEObject().cls(), obj.getUSEObject());
                     }
                 }
                 // Unknown
-                System.out.println("Unknown case for dapValue type: " + dapValue.getType());
                 yield UndefinedValue.instance;
             }
         };
@@ -360,7 +369,7 @@ public class DebugpyClient {
             String hexString = matcher.group();
             return Long.parseLong(hexString.substring(2), 16);
         }
-        return 0;
+        return 0L;
     }
 
     private List<DAPValue> fetchChildren(long variablesReference) {
@@ -380,10 +389,10 @@ public class DebugpyClient {
         }
         PyMethod method = ((PyMethod) pyType.getMethodsByName("__init__").getFirst());
         String file = method.getFile();
-        int endLineNo = method.getStartLineNo();
+        int startLineNo = method.getStartLineNo();
         String className = method.getClassName();
 
-        updateInternalBreakpointMappings(file, className, List.of(endLineNo), BreakpointType.CONSTRUCTOR_CALL);
+        updateInternalBreakpointMappings(file, className, List.of(startLineNo), BreakpointType.CONSTRUCTOR_CALL);
         return setBreakpoints(file);
     }
 
